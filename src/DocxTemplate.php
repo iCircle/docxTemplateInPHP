@@ -52,14 +52,13 @@ class DocxTemplate {
         );
 
         foreach($filesToParse as $fileToParse){
-            if(isset($fileToParse["required"])){
-                if(!file_exists($workingDir.'/'.$fileToParse["name"])){
-                    throw new Exception("Can not merge, Template is corrupted");
-                }
+            if(isset($fileToParse["required"]) && !file_exists($workingDir.'/'.$fileToParse["name"])){
+                throw new Exception("Can not merge, Template is corrupted");
+            }
+            if(file_exists($workingDir.'/'.$fileToParse["name"])){
                 $this->mergeFile($workingDir,$workingDir.'/'.$fileToParse["name"],$data);
             }
         }
-
 
         // once merge is happened , zip the working directory and rename
         $mergedFile = $workingDir.'/output.docx';
@@ -98,7 +97,36 @@ class DocxTemplate {
 
     private function mergeFile($workingDir,$file,$data){
 
+        $xmlElement = new DOMDocument();
+        if($xmlElement->load($file) === FALSE){
+            throw new Exception("Error in merging , Template might be corrupted ");
+        }
 
+        $this->parseXMLElement($workingDir,$xmlElement->documentElement,$data);
+
+        if($xmlElement->save($file) === FALSE){
+            throw new Exception("Error in creating output");
+        }
+
+    }
+
+    private function parseXMLElement($workingDir,DOMElement $xmlElement,$data){
+
+        $tagName = $xmlElement->tagName;
+        switch(strtoupper($tagName)){
+            case "W:T":
+                $xmlElement->nodeValue = "Success1";
+                break;
+            default:
+                if($xmlElement->hasChildNodes()){
+                    foreach($xmlElement->childNodes as $childNode){
+                        $newChildNode = $this->parseXMLElement($workingDir,$childNode,$data);
+                        $xmlElement->replaceChild($newChildNode,$childNode);
+                    }
+                }
+        }
+
+        return $xmlElement;
     }
 
     private function startsWith($haystack, $needle) {
