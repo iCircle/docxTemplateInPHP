@@ -112,21 +112,40 @@ class DocxTemplate {
 
     private function parseXMLElement($workingDir,DOMElement $xmlElement,$data){
 
+        $returnObj = array();
+
         $tagName = $xmlElement->tagName;
         switch(strtoupper($tagName)){
             case "W:T":
                 $xmlElement->nodeValue = "Success1";
+                $returnObj["status"]="replace";
+                $returnObj["element"]=$xmlElement;
                 break;
             default:
                 if($xmlElement->hasChildNodes()){
+                    $status = "none";
                     foreach($xmlElement->childNodes as $childNode){
-                        $newChildNode = $this->parseXMLElement($workingDir,$childNode,$data);
-                        $xmlElement->replaceChild($newChildNode,$childNode);
+                        if($childNode->nodeType === XML_ELEMENT_NODE){
+                            $parsedElement = $this->parseXMLElement($workingDir,$childNode,$data);
+                            switch($parsedElement["status"]){
+                                case "replace":
+                                    $xmlElement->replaceChild($parsedElement["element"],$childNode);
+                                    $status = "replace";
+                                    break;
+                                case "mergeNext":
+
+                            }
+                        }
                     }
+                    $returnObj["status"] = $status;
+                    $returnObj["element"] = $xmlElement;
+                }else{
+                    $returnObj["status"] = "none";
+                    $returnObj["element"] = $xmlElement;
                 }
         }
 
-        return $xmlElement;
+        return $returnObj;
     }
 
     private function startsWith($haystack, $needle) {
