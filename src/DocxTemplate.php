@@ -7,6 +7,8 @@
 
 class DocxTemplate {
     private $template = null;
+    private $keyStartChar = '[';
+    private $keyEndChar   = ']';
 
     function __construct($templatePath){
         if(!file_exists($templatePath)){
@@ -107,6 +109,44 @@ class DocxTemplate {
         if($xmlElement->save($file) === FALSE){
             throw new Exception("Error in creating output");
         }
+
+    }
+    /**
+     * this method normalizes the template keys split over multiple <w:t> and multiple <w:r> elements
+     *
+     */
+    private function normalize(DOMDocument $domDocument){
+        $wtElems = $domDocument->getElementsByTagName('w:t');
+
+        foreach($wtElems as $wtElem){
+            $textContent = $wtElem->textContent;
+            $textChars = str_split($textContent);
+            $isInompleteKeyAtEnd = false;
+            for($i=count($textChars)-1; $i>=0; $i--){
+                if($textChars[$i] === $this->$keyStartChar || $textChars[$i] === $this->$keyEndChar){
+                    // found keyStartChar/keyEndChar, check the \ character behind the keyStartChar/keyEndChar,
+                    $j = $i-1;
+                    for(; $j>= 0;$j--){
+                        if($textChars[$j] != "\\"){
+                            break;
+                        }
+                    }
+                    if(($i-$j)%2){
+                        // if i-j is odd ,
+                        // then there are even numbers of \ chars behind found keyStartChar/keyEndChar
+                        // so keyStartChar/keyEndChar is not escaped and hence valid
+                        if($textChars[$i] === $this->$keyStartChar){
+                            $isInompleteKeyAtEnd = true;
+                        }
+                        break;
+                    }
+                }
+            }
+
+        }
+
+
+
 
     }
 
