@@ -10,6 +10,9 @@ class DocxTemplate {
     private $keyStartChar = '[';
     private $keyEndChar   = ']';
 
+    // for internal Use
+    private $incompleteKeyNodes = array();
+
     function __construct($templatePath){
         if(!file_exists($templatePath)){
             throw new Exception("Invalid Template Path");
@@ -120,28 +123,14 @@ class DocxTemplate {
 
         foreach($wtElems as $wtElem){
             $textContent = $wtElem->textContent;
-            $textChars = str_split($textContent);
-            $isInompleteKeyAtEnd = false;
-            for($i=count($textChars)-1; $i>=0; $i--){
-                if($textChars[$i] === $this->$keyStartChar || $textChars[$i] === $this->$keyEndChar){
-                    // found keyStartChar/keyEndChar, check the \ character behind the keyStartChar/keyEndChar,
-                    $j = $i-1;
-                    for(; $j>= 0;$j--){
-                        if($textChars[$j] != "\\"){
-                            break;
-                        }
-                    }
-                    if(($i-$j)%2){
-                        // if i-j is odd ,
-                        // then there are even numbers of \ chars behind found keyStartChar/keyEndChar
-                        // so keyStartChar/keyEndChar is not escaped and hence valid
-                        if($textChars[$i] === $this->$keyStartChar){
-                            $isInompleteKeyAtEnd = true;
-                        }
-                        break;
-                    }
-                }
+            $isIncompleteKeyAtEnd = $this->hasIncompleteKey($textContent);
+            while($isIncompleteKeyAtEnd){
+                //move the content of next w:t elements to current w:t element to complete the key definition
+
             }
+
+
+
 
         }
 
@@ -150,42 +139,93 @@ class DocxTemplate {
 
     }
 
-    private function parseXMLElement($workingDir,DOMElement $xmlElement,$data){
+    private function hasIncompleteKey($text){
+        $textChars = str_split($text);
+        $isIncompleteKeyAtEnd = false;
+        for($i=count($textChars)-1; $i>=0; $i--){
+            if($textChars[$i] === $this->$keyStartChar || $textChars[$i] === $this->$keyEndChar){
+                // found keyStartChar/keyEndChar, check the \ character behind the keyStartChar/keyEndChar,
+                $j = $i-1;
+                for(; $j>= 0;$j--){
+                    if($textChars[$j] != "\\"){
+                        break;
+                    }
+                }
+                if(($i-$j)%2){
+                    // if i-j is odd ,
+                    // then there are even numbers of \ chars behind found keyStartChar/keyEndChar
+                    // so keyStartChar/keyEndChar is not escaped and hence valid
+                    if($textChars[$i] === $this->$keyStartChar){
+                        $isIncompleteKeyAtEnd = true;
+                    }
+                    break;
+                }
+            }
+        }
+        return $isIncompleteKeyAtEnd;
+    }
 
-        $returnObj = array();
+
+    private function parseXMLElement($workingDir,DOMElement $xmlElement,$data){
 
         $tagName = $xmlElement->tagName;
         switch(strtoupper($tagName)){
             case "W:T":
+                //find the template keys and replace it with data
+                $keys = $this->getTemplateKeys($xmlElement);
+
                 $xmlElement->nodeValue = "Success1";
-                $returnObj["status"]="replace";
-                $returnObj["element"]=$xmlElement;
                 break;
             default:
                 if($xmlElement->hasChildNodes()){
-                    $status = "none";
                     foreach($xmlElement->childNodes as $childNode){
                         if($childNode->nodeType === XML_ELEMENT_NODE){
-                            $parsedElement = $this->parseXMLElement($workingDir,$childNode,$data);
-                            switch($parsedElement["status"]){
-                                case "replace":
-                                    $xmlElement->replaceChild($parsedElement["element"],$childNode);
-                                    $status = "replace";
-                                    break;
-                                case "mergeNext":
-
-                            }
+                            $newChild = $this->parseXMLElement($workingDir,$childNode,$data);
+                            $xmlElement->replaceChild($newChild,$childNode);
                         }
                     }
-                    $returnObj["status"] = $status;
-                    $returnObj["element"] = $xmlElement;
-                }else{
-                    $returnObj["status"] = "none";
-                    $returnObj["element"] = $xmlElement;
                 }
         }
 
-        return $returnObj;
+        return $xmlElement;
+    }
+
+    /**
+     * @param DOMElement $wtElement <w:t> element in the document xml,
+     * this method should be called sequentially for all the <w:t> elements in the order they appear in the document xml
+     *
+     */
+    private function getTemplateKeys(DOMElement $wtElement){
+        if(strtoupper($wtElement->tagName) != "W:T"){
+            $this->log(LOG_ALERT,"Invalid element for finding template keys : Line ".$wtElement->getLineNo());
+            return;
+        }
+        $keys = array();
+        $textContent = $wtElement->textContent;
+        $incompleteText = '';
+        if(count($this->incompleteKeyNodes) > 0){
+            // incomplete keys are from different <p> elements , then discard the old incomplete elements
+            $firstIncompleteKey = $this->incompleteKeyNodes[0];
+            if($firstIncompleteKey->parentNode->parentNode !== $wtElement->parentNode->parentNode){
+                $this->log(LOG_WARNING,"incomplete keys in paragraph : Line ".$firstIncompleteKey->parentNode->parentNode->getLineNo());
+                $this->incompleteKeyNodes = array();
+            }
+
+            foreach($this->incompleteKeyNodes as $incompleteKeyNode){
+                //$incompleteKeyNode will be an instance of KeyNode class
+                $incompleteText .= $incompleteKeyNode->key();
+            }
+        }
+        $textContent  = $incompleteText.$textContent;
+
+        $textChars = str_split($textContent);
+
+
+
+    }
+
+    private function log($level,$message){
+        echo $message;
     }
 
     private function startsWith($haystack, $needle) {
@@ -197,5 +237,48 @@ class DocxTemplate {
         return $needle === "" || (($temp = strlen($haystack) - strlen($needle)) >= 0 && strpos($haystack, $needle, $temp) !== FALSE);
     }
 
+
+}
+
+class KeyNode{
+    private $key = null;
+    private $keyIndex = 0;
+    private $isComplete = false;
+    private $wtElement = null;
+
+    function __construct($key,$keyIndex,$isComplete,DOMElement $wtElement){
+        $this->key = $key;
+        $this->keyIndex = $keyIndex;
+        $this->isComplete = $isComplete;
+        $this->wtElement = $wtElement;
+    }
+
+    /**
+     * @return string
+     */
+    public function key(){
+        return $this->key;
+    }
+
+    /**
+     * @return int
+     */
+    public function keyIndex(){
+        return $this->keyIndex;
+    }
+
+    /**
+     * @return boolean
+     */
+    public function isComplete(){
+        return $this->isComplete;
+    }
+
+    /**
+     * @return DOMElement
+     */
+    public function getWtElement(){
+        return $this->wtElement;
+    }
 
 }
