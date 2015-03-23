@@ -93,7 +93,6 @@ class DocxTemplate {
 
         }
 
-
         // remove workingDir and workingFile
         unlink($workingFile);
         //rmdir($workingDir);
@@ -173,8 +172,33 @@ class DocxTemplate {
             case "W:T":
                 //find the template keys and replace it with data
                 $keys = $this->getTemplateKeys($xmlElement);
+                $textContent = "";
+                foreach($keys as $key){
+                    if($key->isKey()){
+                        $keyName = $key->key();
+                        $keyName = substr($keyName,1,strlen($keyName)-2);
 
-                $xmlElement->nodeValue = "Success1";
+                        $keyParts = preg_split('/\./',$keyName);
+                        $keyValue = $data;
+                        foreach($keyParts as $keyPart){
+                            if(is_array($keyValue) && array_key_exists($keyPart,$keyValue)){
+                                $keyValue = $keyValue[$keyPart];
+                            }else{
+                                $keyValue = false;
+                                break;
+                            }
+                        }
+                        if($keyValue){
+                            $textContent = $textContent.$keyValue;
+                        }else{
+                            $textContent = $textContent.$this->keyStartChar.$keyName.$this->keyEndChar;
+                        }
+                    }else{
+                        $textContent = $textContent.$key->key();
+                    }
+                }
+
+                $xmlElement->nodeValue = $textContent;
                 break;
             default:
                 if($xmlElement->hasChildNodes()){
@@ -219,9 +243,77 @@ class DocxTemplate {
         $textContent  = $incompleteText.$textContent;
 
         $textChars = str_split($textContent);
+        $key = null;
+        $nonKey = "";
+        for($i=0;$i<count($textChars);$i++){
+            if($textChars[$i] === $this->keyStartChar || $textChars[$i] === $this->keyEndChar){
+                // found keyStartChar/keyEndChar check the \ character behind the keyStartChar/keyEndChar
+                $j = $i-1;
+                for(; $j>= 0;$j--){
+                    if($textChars[$j] != "\\"){
+                        break;
+                    }
+                }
+                if(($i-$j)%2){
+                    // if i-j is odd ,
+                    // then there are even numbers of \ chars behind found keyStartChar/keyEndChar
+                    // so keyStartChar/keyEndChar is not escaped and hence valid
+                    if($textChars[$i] === $this->keyStartChar){
+                        //found keyStartChar
+                        $keyNode = new KeyNode($nonKey,false,true,$wtElement);
+                        $keys[] = $keyNode;
 
+                        $key = $textChars[$i];
+                        $nonKey = "";
+                    }else{
+                        //found keyEndChar
+                        $key = $key.$textChars[$i];
+                        $keyNode = new KeyNode($key,true,true,$wtElement);
+                        $keys[] = $keyNode;
 
+                        $key = null;
+                        $nonKey = "";
+                    }
+                    continue;
+                }
 
+            }
+            //neither keyStartChar nor keyEndChar
+            if($key !== null){
+                // if a key is started, append to it
+                $key = $key.$textChars[$i];
+            }else{
+                $nonKey = $nonKey.$textChars[$i];
+            }
+        }
+
+        if(count($this->incompleteKeyNodes) > 0){
+            if(count($keys) > 0){
+                // if there were incomplete keys and found one or more complete keys in current textContent
+                // copy the incomplete keys content to current w:t element
+                for($i = count($this->incompleteKeyNodes);$i>=0;$i--){
+                    $incompleteKeyNode = $this->incompleteKeyNodes[$i];
+                    $incompleteKeyElement = $incompleteKeyNode->wtElement();
+                    $incompleteKey = $incompleteKeyNode->key();
+
+                    //delete content from the incompleteKeyElement
+                    $incompleteKeyElementContent = $incompleteKeyElement->textContent;
+                    $incompleteKeyElementContent = substr($incompleteKeyElementContent,0,strlen($incompleteKeyElementContent)-strlen($incompleteKey));
+                    $incompleteKeyElement->nodeValue = $incompleteKeyElementContent;
+
+                    //add incomplete key to this wtElement
+                    $thisTextContent = $wtElement->textContent;
+                    $wtElement->nodeValue = $incompleteKey.$thisTextContent;
+                }
+                $this->incompleteKeyNodes = array();
+            }else{
+                //create an incomplete keyNode for this complete w:t
+                $keyNode = new KeyNode($textContent,true,false,$wtElement);
+                $this->incompleteKeyNodes[] = $keyNode;
+            }
+        }
+
+        return $keys;
     }
 
     private function log($level,$message){
@@ -242,13 +334,13 @@ class DocxTemplate {
 
 class KeyNode{
     private $key = null;
-    private $keyIndex = 0;
+    private $isKey = false;
     private $isComplete = false;
     private $wtElement = null;
 
-    function __construct($key,$keyIndex,$isComplete,DOMElement $wtElement){
+    function __construct($key,$isKey,$isComplete,DOMElement $wtElement){
         $this->key = $key;
-        $this->keyIndex = $keyIndex;
+        $this->isKey = $isKey;
         $this->isComplete = $isComplete;
         $this->wtElement = $wtElement;
     }
@@ -263,8 +355,8 @@ class KeyNode{
     /**
      * @return int
      */
-    public function keyIndex(){
-        return $this->keyIndex;
+    public function isKey(){
+        return $this->isKey;
     }
 
     /**
@@ -277,7 +369,7 @@ class KeyNode{
     /**
      * @return DOMElement
      */
-    public function getWtElement(){
+    public function wtElement(){
         return $this->wtElement;
     }
 
