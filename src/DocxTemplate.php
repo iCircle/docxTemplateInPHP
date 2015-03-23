@@ -113,57 +113,6 @@ class DocxTemplate {
         }
 
     }
-    /**
-     * this method normalizes the template keys split over multiple <w:t> and multiple <w:r> elements
-     *
-     */
-    private function normalize(DOMDocument $domDocument){
-        $wtElems = $domDocument->getElementsByTagName('w:t');
-
-        foreach($wtElems as $wtElem){
-            $textContent = $wtElem->textContent;
-            $isIncompleteKeyAtEnd = $this->hasIncompleteKey($textContent);
-            while($isIncompleteKeyAtEnd){
-                //move the content of next w:t elements to current w:t element to complete the key definition
-
-            }
-
-
-
-
-        }
-
-
-
-
-    }
-
-    private function hasIncompleteKey($text){
-        $textChars = str_split($text);
-        $isIncompleteKeyAtEnd = false;
-        for($i=count($textChars)-1; $i>=0; $i--){
-            if($textChars[$i] === $this->$keyStartChar || $textChars[$i] === $this->$keyEndChar){
-                // found keyStartChar/keyEndChar, check the \ character behind the keyStartChar/keyEndChar,
-                $j = $i-1;
-                for(; $j>= 0;$j--){
-                    if($textChars[$j] != "\\"){
-                        break;
-                    }
-                }
-                if(($i-$j)%2){
-                    // if i-j is odd ,
-                    // then there are even numbers of \ chars behind found keyStartChar/keyEndChar
-                    // so keyStartChar/keyEndChar is not escaped and hence valid
-                    if($textChars[$i] === $this->$keyStartChar){
-                        $isIncompleteKeyAtEnd = true;
-                    }
-                    break;
-                }
-            }
-        }
-        return $isIncompleteKeyAtEnd;
-    }
-
 
     private function parseXMLElement($workingDir,DOMElement $xmlElement,$data){
 
@@ -174,7 +123,7 @@ class DocxTemplate {
                 $keys = $this->getTemplateKeys($xmlElement);
                 $textContent = "";
                 foreach($keys as $key){
-                    if($key->isKey()){
+                    if($key->isKey() && $key->isComplete()){
                         $keyName = $key->key();
                         $keyName = substr($keyName,1,strlen($keyName)-2);
 
@@ -222,7 +171,7 @@ class DocxTemplate {
     private function getTemplateKeys(DOMElement $wtElement){
         if(strtoupper($wtElement->tagName) != "W:T"){
             $this->log(LOG_ALERT,"Invalid element for finding template keys : Line ".$wtElement->getLineNo());
-            return;
+            return false;
         }
         $keys = array();
         $textContent = $wtElement->textContent;
@@ -230,8 +179,8 @@ class DocxTemplate {
         if(count($this->incompleteKeyNodes) > 0){
             // incomplete keys are from different <p> elements , then discard the old incomplete elements
             $firstIncompleteKey = $this->incompleteKeyNodes[0];
-            if($firstIncompleteKey->parentNode->parentNode !== $wtElement->parentNode->parentNode){
-                $this->log(LOG_WARNING,"incomplete keys in paragraph : Line ".$firstIncompleteKey->parentNode->parentNode->getLineNo());
+            if($firstIncompleteKey->wtElement()->parentNode->parentNode !== $wtElement->parentNode->parentNode){
+                $this->log(LOG_WARNING,"incomplete keys in paragraph : Line ".$firstIncompleteKey->wtElement()->parentNode->parentNode->getLineNo());
                 $this->incompleteKeyNodes = array();
             }
 
@@ -260,19 +209,23 @@ class DocxTemplate {
                     // so keyStartChar/keyEndChar is not escaped and hence valid
                     if($textChars[$i] === $this->keyStartChar){
                         //found keyStartChar
-                        $keyNode = new KeyNode($nonKey,false,true,$wtElement);
-                        $keys[] = $keyNode;
-
+                        if($nonKey !== ""){
+                            $keyNode = new KeyNode($nonKey,false,true,$wtElement);
+                            $keys[] = $keyNode;
+                        }
                         $key = $textChars[$i];
                         $nonKey = "";
                     }else{
                         //found keyEndChar
-                        $key = $key.$textChars[$i];
-                        $keyNode = new KeyNode($key,true,true,$wtElement);
-                        $keys[] = $keyNode;
-
-                        $key = null;
-                        $nonKey = "";
+                        if($key !== null){
+                            $key = $key.$textChars[$i];
+                            $keyNode = new KeyNode($key,true,true,$wtElement);
+                            $keys[] = $keyNode;
+                            $key = null;
+                            $nonKey = "";
+                        }else{
+                            $nonKey = $nonKey.$textChars[$i];
+                        }
                     }
                     continue;
                 }
@@ -287,32 +240,51 @@ class DocxTemplate {
             }
         }
 
-        if(count($this->incompleteKeyNodes) > 0){
-            if(count($keys) > 0){
-                // if there were incomplete keys and found one or more complete keys in current textContent
-                // copy the incomplete keys content to current w:t element
-                for($i = count($this->incompleteKeyNodes);$i>=0;$i--){
-                    $incompleteKeyNode = $this->incompleteKeyNodes[$i];
-                    $incompleteKeyElement = $incompleteKeyNode->wtElement();
-                    $incompleteKey = $incompleteKeyNode->key();
-
-                    //delete content from the incompleteKeyElement
-                    $incompleteKeyElementContent = $incompleteKeyElement->textContent;
-                    $incompleteKeyElementContent = substr($incompleteKeyElementContent,0,strlen($incompleteKeyElementContent)-strlen($incompleteKey));
-                    $incompleteKeyElement->nodeValue = $incompleteKeyElementContent;
-
-                    //add incomplete key to this wtElement
-                    $thisTextContent = $wtElement->textContent;
-                    $wtElement->nodeValue = $incompleteKey.$thisTextContent;
-                }
-                $this->incompleteKeyNodes = array();
-            }else{
-                //create an incomplete keyNode for this complete w:t
-                $keyNode = new KeyNode($textContent,true,false,$wtElement);
-                $this->incompleteKeyNodes[] = $keyNode;
-            }
+        if($key !== null){
+            $openKey = new KeyNode($key,true,false,$wtElement);
+        }
+        if($nonKey !== ""){
+            $openText = new KeyNode($nonKey,false,true,$wtElement);
         }
 
+        $incompleteKeys = false;
+        if(count($this->incompleteKeyNodes) > 0){
+            $incompleteKeys = true;
+        }
+        if($incompleteKeys && (!isset($openKey) || (isset($openKey) && count($keys) > 0))){
+            // if there were incomplete keys and found one or more complete keys in current textContent
+            // copy the incomplete keys content to current w:t element
+            for($i = count($this->incompleteKeyNodes)-1;$i>=0;$i--){
+                $incompleteKeyNode = $this->incompleteKeyNodes[$i];
+                $incompleteKeyElement = $incompleteKeyNode->wtElement();
+                $incompleteKey = $incompleteKeyNode->key();
+
+                //delete content from the incompleteKeyElement
+                $incompleteKeyElementContent = $incompleteKeyElement->textContent;
+                $incompleteKeyElementContent = substr($incompleteKeyElementContent,0,strlen($incompleteKeyElementContent)-strlen($incompleteKey));
+                $incompleteKeyElement->nodeValue = $incompleteKeyElementContent;
+
+                //add incomplete key to this wtElement
+                $thisTextContent = $wtElement->textContent;
+                $wtElement->nodeValue = $incompleteKey.$thisTextContent;
+            }
+            $this->incompleteKeyNodes = array();
+        }
+
+        if(isset($openKey) && (!$incompleteKeys || ($incompleteKeys && count($keys) > 0))){
+            $this->incompleteKeyNodes[] = $openKey;
+            $keys[] = $openKey;
+        }
+
+        if(isset($openKey) && $incompleteKeys && count($keys) == 0){
+            $thisTextAsKeyNode = new KeyNode($wtElement->textContent,true,false,$wtElement);
+            $this->incompleteKeyNodes[] = $thisTextAsKeyNode;
+            $keys[] = $thisTextAsKeyNode;
+        }
+
+        if(isset($openText)){
+            $keys[]= $openText;
+        }
         return $keys;
     }
 
