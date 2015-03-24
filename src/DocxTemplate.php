@@ -124,23 +124,30 @@ class DocxTemplate {
                 $textContent = "";
                 foreach($keys as $key){
                     if($key->isKey() && $key->isComplete()){
-                        $keyName = $key->key();
-                        $keyName = substr($keyName,1,strlen($keyName)-2);
+                        $keyOptions = $key->options();
+                        if(count($keyOptions) == 0){
+                            $keyName = $key->key();
+                            $keyName = substr($keyName,1,strlen($keyName)-2);
 
-                        $keyParts = preg_split('/\./',$keyName);
-                        $keyValue = $data;
-                        foreach($keyParts as $keyPart){
-                            if(is_array($keyValue) && array_key_exists($keyPart,$keyValue)){
-                                $keyValue = $keyValue[$keyPart];
-                            }else{
-                                $keyValue = false;
-                                break;
+                            $keyParts = preg_split('/\./',$keyName);
+                            $keyValue = $data;
+                            foreach($keyParts as $keyPart){
+                                if(is_array($keyValue) && array_key_exists($keyPart,$keyValue)){
+                                    $keyValue = $keyValue[$keyPart];
+                                }else{
+                                    $keyValue = false;
+                                    break;
+                                }
                             }
-                        }
-                        if($keyValue){
-                            $textContent = $textContent.$keyValue;
+                            if($keyValue){
+                                $textContent = $textContent.$keyValue;
+                            }else{
+                                $textContent = $textContent.$this->keyStartChar.$keyName.$this->keyEndChar;
+                            }
                         }else{
-                            $textContent = $textContent.$this->keyStartChar.$keyName.$this->keyEndChar;
+                            if(array_key_exists("repeat",$keyOptions)){
+
+                            }
                         }
                     }else{
                         $textContent = $textContent.$key->key();
@@ -211,6 +218,10 @@ class DocxTemplate {
                         //found keyStartChar
                         if($nonKey !== ""){
                             $keyNode = new KeyNode($nonKey,false,true,$wtElement);
+                            $keys[] = $keyNode;
+                        }
+                        if($key != null){
+                            $keyNode = new KeyNode($key,false,true,$wtElement);
                             $keys[] = $keyNode;
                         }
                         $key = $textChars[$i];
@@ -309,12 +320,31 @@ class KeyNode{
     private $isKey = false;
     private $isComplete = false;
     private $wtElement = null;
+    private $options = array();
 
     function __construct($key,$isKey,$isComplete,DOMElement $wtElement){
         $this->key = $key;
         $this->isKey = $isKey;
         $this->isComplete = $isComplete;
         $this->wtElement = $wtElement;
+
+        if($this->isKey && $this->isComplete){
+            //parse the complete key to extract options
+            $options = preg_split("/;/",$this->key);
+            if(count($options) > 1){
+                for($i=1;$i<count($options);$i++){
+                    $option = preg_split("/=/",$options[$i]);
+                    $optionName = $option[0];
+                    $optionValue = true;
+                    if(count($option) > 1){
+                        $optionValue = $option[1];
+                    }
+                    $this->options[$optionName] = $optionValue;
+                }
+                $this->key = $options[0];
+            }
+        }
+
     }
 
     /**
@@ -343,6 +373,13 @@ class KeyNode{
      */
     public function wtElement(){
         return $this->wtElement;
+    }
+
+    /**
+     * @return array
+     */
+    public function options(){
+        return $this->options;
     }
 
 }
