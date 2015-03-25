@@ -122,23 +122,16 @@ class DocxTemplate {
                 //find the template keys and replace it with data
                 $keys = $this->getTemplateKeys($xmlElement);
                 $textContent = "";
-                foreach($keys as $key){
+                for($i=0;$i<count($keys);$i++){
+                    $key = $keys[$i];
                     if($key->isKey() && $key->isComplete()){
                         $keyOptions = $key->options();
+                        $keyName = $key->key();
                         if(count($keyOptions) == 0){
-                            $keyName = $key->key();
                             $keyName = substr($keyName,1,strlen($keyName)-2);
 
-                            $keyParts = preg_split('/\./',$keyName);
-                            $keyValue = $data;
-                            foreach($keyParts as $keyPart){
-                                if(is_array($keyValue) && array_key_exists($keyPart,$keyValue)){
-                                    $keyValue = $keyValue[$keyPart];
-                                }else{
-                                    $keyValue = false;
-                                    break;
-                                }
-                            }
+                            $keyValue = $this->getValue($keyName,$data);
+
                             if($keyValue){
                                 $textContent = $textContent.$keyValue;
                             }else{
@@ -146,7 +139,21 @@ class DocxTemplate {
                             }
                         }else{
                             if(array_key_exists("repeat",$keyOptions)){
-
+                                $repeatType = "row";
+                                if(array_key_exists("repeatType",$keyOptions)){
+                                    $repeatType = strtolower($keyOptions["repeatType"]);
+                                }
+                                switch($repeatType){
+                                    case "row":
+                                        // remove the current key from the w:t textContent
+                                        // and add the remaining key's original text unprocessed
+                                        for($j=$i+1;$j<count($keys);$j++){
+                                            $remainingKey = $keys[$j];
+                                            $textContent = $textContent.$remainingKey->originalKey();
+                                        }
+                                        $xmlElement->nodeValue = $textContent;
+                                        throw new RepeatRowException($keyName,$keyOptions["repeat"]);
+                                }
                             }
                         }
                     }else{
@@ -160,8 +167,30 @@ class DocxTemplate {
                 if($xmlElement->hasChildNodes()){
                     foreach($xmlElement->childNodes as $childNode){
                         if($childNode->nodeType === XML_ELEMENT_NODE){
-                            $newChild = $this->parseXMLElement($workingDir,$childNode,$data);
-                            $xmlElement->replaceChild($newChild,$childNode);
+                            try{
+                                $newChild = $this->parseXMLElement($workingDir,$childNode,$data);
+                                $xmlElement->replaceChild($newChild,$childNode);
+                            }catch (RepeatTextException $te){
+                                //not supported yet
+                            }catch (RepeatRowException $re){
+                                if(strtoupper($xmlElement->tagName) === "W:TBL"){
+                                    $repeatingArray = $this->getValue($re->getKey(),$data);
+                                    $nextRow = $childNode->nextSibling;
+                                    $repeatingRowElement = $xmlElement->removeChild($childNode);
+                                    $repeatingKeyName = $re->getName();
+                                    if($repeatingArray && is_array($repeatingArray)){
+                                        foreach($repeatingArray as $repeatingData){
+                                            $repeatedRowElement = $repeatingRowElement->cloneNode(true);
+                                            $newData = $data;
+                                            $newData[$repeatingKeyName] = $repeatingData;
+                                            $generatedRow = $this->parseXMLElement($workingDir,$repeatedRowElement,$newData);
+                                            $xmlElement->insertBefore($generatedRow,$nextRow);
+                                        }
+                                    }
+                                }else{
+                                    throw $re;
+                                }
+                            }
                         }
                     }
                 }
@@ -312,11 +341,26 @@ class DocxTemplate {
         return $needle === "" || (($temp = strlen($haystack) - strlen($needle)) >= 0 && strpos($haystack, $needle, $temp) !== FALSE);
     }
 
+    private function getValue($key,$data){
+        $keyParts = preg_split('/\./',$key);
+        $keyValue = $data;
+        foreach($keyParts as $keyPart){
+            if(is_array($keyValue) && array_key_exists($keyPart,$keyValue)){
+                $keyValue = $keyValue[$keyPart];
+            }else{
+                $keyValue = false;
+                break;
+            }
+        }
+        return $keyValue;
+    }
+
 
 }
 
 class KeyNode{
     private $key = null;
+    private $originalKey = null;
     private $isKey = false;
     private $isComplete = false;
     private $wtElement = null;
@@ -324,13 +368,14 @@ class KeyNode{
 
     function __construct($key,$isKey,$isComplete,DOMElement $wtElement){
         $this->key = $key;
+        $this->originalKey = $key;
         $this->isKey = $isKey;
         $this->isComplete = $isComplete;
         $this->wtElement = $wtElement;
 
         if($this->isKey && $this->isComplete){
             //parse the complete key to extract options
-            $options = preg_split("/;/",$this->key);
+            $options = preg_split("/;/",substr($this->key,1,strlen($this->key)-2));
             if(count($options) > 1){
                 for($i=1;$i<count($options);$i++){
                     $option = preg_split("/=/",$options[$i]);
@@ -352,6 +397,13 @@ class KeyNode{
      */
     public function key(){
         return $this->key;
+    }
+
+    /**
+     * @return string
+     */
+    public function originalKey(){
+        return $this->originalKey;
     }
 
     /**
@@ -382,4 +434,60 @@ class KeyNode{
         return $this->options;
     }
 
+}
+
+// Exceptions to handle repetition
+
+class RepeatTextException extends Exception{
+    private $name = null;
+    private $key = null;
+
+    function __construct($name,$key){
+        $this->name = $name;
+        $this->key = $key;
+    }
+
+    public function getKey(){
+        return $this->key;
+    }
+
+    public function getName(){
+        return $this->name;
+    }
+}
+
+class RepeatParagraphException extends Exception{
+    private $name = null;
+    private $key = null;
+
+    function __construct($name,$key){
+        $this->name = $name;
+        $this->key = $key;
+    }
+
+    public function getKey(){
+        return $this->key;
+    }
+
+    public function getName(){
+        return $this->name;
+    }
+}
+
+class RepeatRowException extends Exception{
+    private $name = null;
+    private $key = null;
+
+    function __construct($name,$key){
+        $this->name = $name;
+        $this->key = $key;
+    }
+
+    public function getKey(){
+        return $this->key;
+    }
+
+    public function getName(){
+        return $this->name;
+    }
 }
