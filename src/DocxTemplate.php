@@ -128,8 +128,6 @@ class DocxTemplate {
                         $keyOptions = $key->options();
                         $keyName = $key->key();
                         if(count($keyOptions) == 0){
-                            $keyName = substr($keyName,1,strlen($keyName)-2);
-
                             $keyValue = $this->getValue($keyName,$data);
 
                             if($keyValue){
@@ -162,6 +160,17 @@ class DocxTemplate {
                 }
 
                 $xmlElement->nodeValue = $textContent;
+                break;
+            case "W:DRAWING":
+                $docPrElement = $xmlElement->getElementsByTagName("wp:docPr")->item(0);
+                if($docPrElement !== null){
+                    $altText = $docPrElement->getAttribute("descr");
+                    if(strlen($altText)>2){
+                        $keyNode = new KeyNode($altText,true,true,$docPrElement);
+                        $imagePath = $this->getValue($keyNode->key(),$data);
+
+                    }
+                }
                 break;
             default:
                 if($xmlElement->hasChildNodes()){
@@ -215,8 +224,8 @@ class DocxTemplate {
         if(count($this->incompleteKeyNodes) > 0){
             // incomplete keys are from different <p> elements , then discard the old incomplete elements
             $firstIncompleteKey = $this->incompleteKeyNodes[0];
-            if($firstIncompleteKey->wtElement()->parentNode->parentNode !== $wtElement->parentNode->parentNode){
-                $this->log(LOG_WARNING,"incomplete keys in paragraph : Line ".$firstIncompleteKey->wtElement()->parentNode->parentNode->getLineNo());
+            if($firstIncompleteKey->element()->parentNode->parentNode !== $wtElement->parentNode->parentNode){
+                $this->log(LOG_WARNING,"incomplete keys in paragraph : Line ".$firstIncompleteKey->element()->parentNode->parentNode->getLineNo());
                 $this->incompleteKeyNodes = array();
             }
 
@@ -296,7 +305,7 @@ class DocxTemplate {
             // copy the incomplete keys content to current w:t element
             for($i = count($this->incompleteKeyNodes)-1;$i>=0;$i--){
                 $incompleteKeyNode = $this->incompleteKeyNodes[$i];
-                $incompleteKeyElement = $incompleteKeyNode->wtElement();
+                $incompleteKeyElement = $incompleteKeyNode->element();
                 $incompleteKey = $incompleteKeyNode->key();
 
                 //delete content from the incompleteKeyElement
@@ -363,15 +372,15 @@ class KeyNode{
     private $originalKey = null;
     private $isKey = false;
     private $isComplete = false;
-    private $wtElement = null;
+    private $element = null;
     private $options = array();
 
-    function __construct($key,$isKey,$isComplete,DOMElement $wtElement){
+    function __construct($key,$isKey,$isComplete,DOMElement $element){
         $this->key = $key;
         $this->originalKey = $key;
         $this->isKey = $isKey;
         $this->isComplete = $isComplete;
-        $this->wtElement = $wtElement;
+        $this->element = $element;
 
         if($this->isKey && $this->isComplete){
             //parse the complete key to extract options
@@ -386,8 +395,8 @@ class KeyNode{
                     }
                     $this->options[$optionName] = $optionValue;
                 }
-                $this->key = $options[0];
             }
+            $this->key = $options[0];
         }
 
     }
@@ -423,8 +432,8 @@ class KeyNode{
     /**
      * @return DOMElement
      */
-    public function wtElement(){
-        return $this->wtElement;
+    public function element(){
+        return $this->element;
     }
 
     /**
