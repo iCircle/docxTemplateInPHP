@@ -183,9 +183,10 @@ class DocxTemplate {
                                 $relDocument->load($relFile);
                                 $relElements = $relDocument->getElementsByTagName("Relationship");
 
-                                $mediaDirectory = $this->workingDir.'/word/media';
-                                $files = scandir($mediaDirectory);
-                                $templateImageRelPath = 'media/rImage'.count($files);
+                                $imageExtn = ".png";
+
+                                $files = scandir($this->workingDir.'/word/media');
+                                $templateImageRelPath = 'media/rImage'.count($files).$imageExtn;
                                 $templateImagePath = $this->workingDir.'/word/'.$templateImageRelPath;
 
                                 $newResourceId = "rId".($relElements->length+1);
