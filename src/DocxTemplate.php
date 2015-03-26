@@ -9,6 +9,8 @@ class DocxTemplate {
     private $template = null;
     private $keyStartChar = '[';
     private $keyEndChar   = ']';
+    private $workingDir = null;
+    private $workingFile = null;
 
     // for internal Use
     private $incompleteKeyNodes = array();
@@ -23,24 +25,24 @@ class DocxTemplate {
     function merge($data, $outputPath = null){
         //open the Archieve to a temp folder
 
-        $workingDir = sys_get_temp_dir()."/DocxTemplating";
-        if(!file_exists($workingDir)){
-            mkdir($workingDir,0777,true);
+        $this->workingDir = sys_get_temp_dir()."/DocxTemplating";
+        if(!file_exists($this->workingDir)){
+            mkdir($this->workingDir,0777,true);
         }
-        $workingFile = tempnam($workingDir,'');
+        $workingFile = tempnam($this->workingDir,'');
         if($workingFile === FALSE || !copy($this->template,$workingFile)){
             throw new Exception("Error in initializing working copy of the template");
         }
-        $workingDir = $workingFile."_";
+        $this->workingDir = $workingFile."_";
         $zip = new ZipArchive();
         if($zip->open($workingFile) === TRUE){
-            $zip->extractTo($workingDir);
+            $zip->extractTo($this->workingDir);
             $zip->close();
         }else{
             throw new Exception('Failed to extract Template');
         }
 
-        if(!file_exists($workingDir)){
+        if(!file_exists($this->workingDir)){
             throw new Exception('Failed to extract Template');
         }
 
@@ -57,29 +59,29 @@ class DocxTemplate {
         );
 
         foreach($filesToParse as $fileToParse){
-            if(isset($fileToParse["required"]) && !file_exists($workingDir.'/'.$fileToParse["name"])){
+            if(isset($fileToParse["required"]) && !file_exists($this->workingDir.'/'.$fileToParse["name"])){
                 throw new Exception("Can not merge, Template is corrupted");
             }
-            if(file_exists($workingDir.'/'.$fileToParse["name"])){
-                $this->mergeFile($workingDir,$workingDir.'/'.$fileToParse["name"],$data);
+            if(file_exists($this->workingDir.'/'.$fileToParse["name"])){
+                $this->mergeFile($this->workingDir.'/'.$fileToParse["name"],$data);
             }
         }
 
         // once merge is happened , zip the working directory and rename
-        $mergedFile = $workingDir.'/output.docx';
+        $mergedFile = $this->workingDir.'/output.docx';
         if($zip->open($mergedFile,ZipArchive::CREATE) === FALSE){
             throw new Exception("Error in creating output");
         }
 
         // Create recursive directory iterator
         $files = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($workingDir),
+            new RecursiveDirectoryIterator($this->workingDir),
             RecursiveIteratorIterator::LEAVES_ONLY
         );
 
         foreach($files as $name=>$file){
             if(!$this->endsWith($name,".") && !$this->endsWith($name,"..")){
-                $name = substr($name,strlen($workingDir."/"));
+                $name = substr($name,strlen($this->workingDir."/"));
                 $zip->addFile($file->getRealPath(),$name);
                 //echo "\n".$name ."  :  ".$file->getRealPath();
             }
@@ -95,18 +97,19 @@ class DocxTemplate {
 
         // remove workingDir and workingFile
         unlink($workingFile);
-        //rmdir($workingDir);
+        //rmdir($this->workingDir);
 
     }
 
-    private function mergeFile($workingDir,$file,$data){
+    private function mergeFile($file,$data){
 
         $xmlElement = new DOMDocument();
         if($xmlElement->load($file) === FALSE){
             throw new Exception("Error in merging , Template might be corrupted ");
         }
 
-        $this->parseXMLElement($workingDir,$xmlElement->documentElement,$data);
+        $this->workingFile = $file;
+        $this->parseXMLElement($xmlElement->documentElement,$data);
 
         if($xmlElement->save($file) === FALSE){
             throw new Exception("Error in creating output");
@@ -114,7 +117,7 @@ class DocxTemplate {
 
     }
 
-    private function parseXMLElement($workingDir,DOMElement $xmlElement,$data){
+    private function parseXMLElement(DOMElement $xmlElement,$data){
 
         $tagName = $xmlElement->tagName;
         switch(strtoupper($tagName)){
@@ -162,13 +165,46 @@ class DocxTemplate {
                 $xmlElement->nodeValue = $textContent;
                 break;
             case "W:DRAWING":
-                $docPrElement = $xmlElement->getElementsByTagName("wp:docPr")->item(0);
+                $docPrElement = $xmlElement->getElementsByTagNameNS("http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing","docPr")->item(0);
                 if($docPrElement !== null){
                     $altText = $docPrElement->getAttribute("descr");
                     if(strlen($altText)>2){
                         $keyNode = new KeyNode($altText,true,true,$docPrElement);
                         $imagePath = $this->getValue($keyNode->key(),$data);
 
+                        $aBlipElem = $xmlElement->getElementsByTagName("blip")->item(0);
+                        if(file_exists($imagePath) && $aBlipElem !== null){
+                            $resourceId = $aBlipElem->getAttribute("r:embed");
+                            $workingFileName = basename($this->workingFile);
+                            $relFile = $this->workingDir.'/word/_rels/'.$workingFileName.'.rels';
+
+                            if(file_exists($relFile)){
+                                $relDocument = new DOMDocument();
+                                $relDocument->load($relFile);
+                                $relElements = $relDocument->getElementsByTagName("Relationship");
+
+                                $mediaDirectory = $this->workingDir.'/word/media';
+                                $files = scandir($mediaDirectory);
+                                $templateImageRelPath = 'media/rImage'.count($files);
+                                $templateImagePath = $this->workingDir.'/word/'.$templateImageRelPath;
+
+                                $newResourceId = "rId".($relElements->length+1);
+                                $aBlipElem->setAttribute("r:embed",$newResourceId);
+
+                                $newRelElement = $relDocument->createElement("Relationship");
+                                $newRelElement->setAttribute("Id",$newResourceId);
+                                $newRelElement->setAttribute("Type","http://schemas.openxmlformats.org/officeDocument/2006/relationships/image");
+                                $newRelElement->setAttribute("Target",$templateImageRelPath);
+
+                                $relDocument->documentElement->appendChild($newRelElement);
+
+
+
+
+                                $relDocument->save($relFile);
+                                copy($imagePath,$templateImagePath);
+                            }
+                        }
                     }
                 }
                 break;
@@ -177,7 +213,7 @@ class DocxTemplate {
                     foreach($xmlElement->childNodes as $childNode){
                         if($childNode->nodeType === XML_ELEMENT_NODE){
                             try{
-                                $newChild = $this->parseXMLElement($workingDir,$childNode,$data);
+                                $newChild = $this->parseXMLElement($childNode,$data);
                                 $xmlElement->replaceChild($newChild,$childNode);
                             }catch (RepeatTextException $te){
                                 //not supported yet
@@ -192,7 +228,7 @@ class DocxTemplate {
                                             $repeatedRowElement = $repeatingRowElement->cloneNode(true);
                                             $newData = $data;
                                             $newData[$repeatingKeyName] = $repeatingData;
-                                            $generatedRow = $this->parseXMLElement($workingDir,$repeatedRowElement,$newData);
+                                            $generatedRow = $this->parseXMLElement($repeatedRowElement,$newData);
                                             $xmlElement->insertBefore($generatedRow,$nextRow);
                                         }
                                     }
