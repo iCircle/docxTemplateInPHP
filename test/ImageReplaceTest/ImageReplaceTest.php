@@ -8,7 +8,15 @@ class ImageReplaceTest extends PHPUnit_Framework_TestCase{
         $templatePath = dirname(__FILE__).'/template.docx';
 
         $docxTemplate = new DocxTemplate($templatePath);
-        $outputPath = dirname(__FILE__).'/mergedOutput.docx';
+        $outputDir = dirname(__FILE__).'/output';
+
+        if(file_exists($outputDir)){
+            DocxTemplate::deleteDir($outputDir);
+        }
+        $this->assertFalse(file_exists($outputDir));
+        mkdir($outputDir,0777,true);
+
+        $outputPath = $outputDir.'/mergedOutput.docx';
         if(file_exists($outputPath)){
             unlink($outputPath);
         }
@@ -42,6 +50,8 @@ class ImageReplaceTest extends PHPUnit_Framework_TestCase{
         $resultDoc->load($outputPath."_"."/word/_rels/footer1.xml.rels");
         $relElements = $resultDoc->documentElement->getElementsByTagName('Relationship');
         $this->assertTrue($relElements->length == 2);
+
+        $this->assertTrue(count(array_diff(scandir($outputPath."_"."/word/media"),array(".",".."))) == 4);
 
     }
 }

@@ -75,16 +75,14 @@ class DocxTemplate {
 
         // Create recursive directory iterator
         $files = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($this->workingDir),
+            new RecursiveDirectoryIterator($this->workingDir,FilesystemIterator::SKIP_DOTS),
             RecursiveIteratorIterator::LEAVES_ONLY
         );
 
         foreach($files as $name=>$file){
-            if(!$this->endsWith($name,".") && !$this->endsWith($name,"..")){
                 $name = substr($name,strlen($this->workingDir."/"));
                 $zip->addFile($file->getRealPath(),$name);
                 //echo "\n".$name ."  :  ".$file->getRealPath();
-            }
         }
         $zip->close();
 
@@ -97,8 +95,7 @@ class DocxTemplate {
 
         // remove workingDir and workingFile
         unlink($workingFile);
-        //rmdir($this->workingDir);
-
+        $this->deleteDir($this->workingDir);
     }
 
     private function mergeFile($file,$data){
@@ -133,7 +130,7 @@ class DocxTemplate {
                         if(count($keyOptions) == 0){
                             $keyValue = $this->getValue($keyName,$data);
 
-                            if($keyValue){
+                            if($keyValue !== false){
                                 $textContent = $textContent.$keyValue;
                             }else{
                                 $textContent = $textContent.$this->keyStartChar.$keyName.$this->keyEndChar;
@@ -152,7 +149,7 @@ class DocxTemplate {
                                             $remainingKey = $keys[$j];
                                             $textContent = $textContent.$remainingKey->originalKey();
                                         }
-                                        $xmlElement->nodeValue = $textContent;
+                                        $this->setTextContent($xmlElement,$textContent);
                                         throw new RepeatRowException($keyName,$keyOptions["repeat"]);
                                 }
                             }
@@ -162,7 +159,7 @@ class DocxTemplate {
                     }
                 }
 
-                $xmlElement->nodeValue = $textContent;
+                $this->setTextContent($xmlElement,$textContent);
                 break;
             case "W:DRAWING":
                 $docPrElement = $xmlElement->getElementsByTagNameNS("http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing","docPr")->item(0);
@@ -185,7 +182,7 @@ class DocxTemplate {
 
                                 $imageExtn = ".png";
 
-                                $files = scandir($this->workingDir.'/word/media');
+                                $files = array_diff(scandir($this->workingDir.'/word/media'),array(".",".."));
                                 $templateImageRelPath = 'media/rImage'.count($files).$imageExtn;
                                 $templateImagePath = $this->workingDir.'/word/'.$templateImageRelPath;
 
@@ -211,7 +208,12 @@ class DocxTemplate {
                 break;
             default:
                 if($xmlElement->hasChildNodes()){
-                    foreach($xmlElement->childNodes as $childNode){
+                    $childNodes = $xmlElement->childNodes;
+                    $childNodesArray = array();
+                    foreach($childNodes as $childNode){
+                        $childNodesArray[] = $childNode;
+                    }
+                    foreach($childNodesArray as $childNode){
                         if($childNode->nodeType === XML_ELEMENT_NODE){
                             try{
                                 $newChild = $this->parseXMLElement($childNode,$data);
@@ -348,11 +350,14 @@ class DocxTemplate {
                 //delete content from the incompleteKeyElement
                 $incompleteKeyElementContent = $incompleteKeyElement->textContent;
                 $incompleteKeyElementContent = substr($incompleteKeyElementContent,0,strlen($incompleteKeyElementContent)-strlen($incompleteKey));
-                $incompleteKeyElement->nodeValue = $incompleteKeyElementContent;
+                if($this->endsWith($incompleteKeyElementContent," ")){
+                    $incompleteKeyElement->setAttribute("xml:space","preserve");
+                }
+                $this->setTextContent($incompleteKeyElement,$incompleteKeyElementContent);
 
                 //add incomplete key to this wtElement
                 $thisTextContent = $wtElement->textContent;
-                $wtElement->nodeValue = $incompleteKey.$thisTextContent;
+                $this->setTextContent($wtElement,$incompleteKey.$thisTextContent);
             }
             $this->incompleteKeyNodes = array();
         }
@@ -391,6 +396,7 @@ class DocxTemplate {
         $keyParts = preg_split('/\./',$key);
         $keyValue = $data;
         foreach($keyParts as $keyPart){
+            $keyPart = trim($keyPart);
             if(is_array($keyValue) && array_key_exists($keyPart,$keyValue)){
                 $keyValue = $keyValue[$keyPart];
             }else{
@@ -399,6 +405,23 @@ class DocxTemplate {
             }
         }
         return $keyValue;
+    }
+
+    private function setTextContent(DOMNode $node,$value){
+        $node->nodeValue = "";
+        return $node->appendChild($node->ownerDocument->createTextNode($value));
+    }
+
+    static public function deleteDir($dirPath){
+        if(is_dir($dirPath)){
+            $files = array_diff(scandir($dirPath), array('..', '.'));
+            foreach($files as $file){
+                self::deleteDir($dirPath.'/'.$file);
+            }
+            rmdir($dirPath);
+        }else{
+            unlink($dirPath);
+        }
     }
 
 
@@ -425,15 +448,16 @@ class KeyNode{
             if(count($options) > 1){
                 for($i=1;$i<count($options);$i++){
                     $option = preg_split("/=/",$options[$i]);
-                    $optionName = $option[0];
+                    $optionName = trim($option[0]);
                     $optionValue = true;
                     if(count($option) > 1){
-                        $optionValue = $option[1];
+                        $optionValue = trim($option[1]);
                     }
                     $this->options[$optionName] = $optionValue;
                 }
             }
-            $this->key = $options[0];
+            $this->key = trim($options[0]);
+            //echo "\n".$this->key;
         }
 
     }
