@@ -4,8 +4,128 @@
         "Read more about it at http://getcomposer.org/doc/01-basic-usage.md#composer-lock-the-lock-file",
         "This file is @generated automatically"
     ],
-    "hash": "d67d3dc4876bd296effc208102fb0fa3",
-    "packages": [],
+    "hash": "449f18f268c30f0d1649340f7e54fb65",
+    "packages": [
+        {
+            "name": "pear/math_biginteger",
+            "version": "v1.0.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/pear/Math_BigInteger.git",
+                "reference": "012ad85ce07c7e1c68689fcb2013481270b3a8f7"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/pear/Math_BigInteger/zipball/012ad85ce07c7e1c68689fcb2013481270b3a8f7",
+                "reference": "012ad85ce07c7e1c68689fcb2013481270b3a8f7",
+                "shasum": ""
+            },
+            "require": {
+                "ext-pcre": "*",
+                "php": ">=4.2.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "*"
+            },
+            "suggest": {
+                "ext-bcmath": "Allows using the BCMath extension internally for computation. Faster than native implementation.",
+                "ext-gmp": "Allows using the GNU Multiple Precision extension internally for computation. If you are doing a lot of computation this is the recommended extension."
+            },
+            "type": "library",
+            "autoload": {
+                "psr-0": {
+                    "Math_": "./"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "LGPL-2.1+"
+            ],
+            "authors": [
+                {
+                    "name": "Jim Wigginton",
+                    "email": "terrafrost@php.net"
+                }
+            ],
+            "description": "Pure-PHP arbitrary precission integer arithmetic library. If GMP or BCMath are available they are used.",
+            "homepage": "https://github.com/pear/Math_BigInteger",
+            "keywords": [
+                "arbitrary",
+                "bcmath",
+                "gmp",
+                "integer",
+                "precision"
+            ],
+            "time": "2014-07-28 20:28:08"
+        },
+        {
+            "name": "pear/numbers_words",
+            "version": "dev-master",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/pear/Numbers_Words.git",
+                "reference": "b6b9bc6f003d58b27db6d6af501e795cb04fbfbe"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/pear/Numbers_Words/zipball/b6b9bc6f003d58b27db6d6af501e795cb04fbfbe",
+                "reference": "b6b9bc6f003d58b27db6d6af501e795cb04fbfbe",
+                "shasum": ""
+            },
+            "require": {
+                "pear/math_biginteger": ">=1.0.2",
+                "php": ">=5.3.2"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "*"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-0": {
+                    "Numbers": "./"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "include-path": [
+                "./"
+            ],
+            "license": [
+                "PHP-3.01"
+            ],
+            "authors": [
+                {
+                    "name": "Kouber Saparev",
+                    "email": "kouber@php.net"
+                },
+                {
+                    "name": "Igor Feghali",
+                    "email": "ifeghali@php.net"
+                },
+                {
+                    "name": "Xavier Noguer",
+                    "email": "xnoguer.php@gmail.com"
+                },
+                {
+                    "name": "Hadar Porat",
+                    "email": "hpman28@gmail.com"
+                },
+                {
+                    "name": "Piotr Klaban",
+                    "email": "makler@man.torun.pl"
+                },
+                {
+                    "name": "Marcelo Subtil Marcal",
+                    "email": "msmarcal@php.net"
+                }
+            ],
+            "description": "Allows converting numbers written in arabic digits to words in several languages. You can convert an integer between -infinity and infinity.",
+            "homepage": "https://github.com/pear/Numbers_Words",
+            "keywords": [
+                "numbers"
+            ],
+            "time": "2015-03-13 16:12:44"
+        }
+    ],
     "packages-dev": [
         {
             "name": "doctrine/instantiator",
@@ -913,21 +1033,24 @@
         },
         {
             "name": "symfony/yaml",
-            "version": "v2.6.4",
+            "version": "v2.6.5",
             "target-dir": "Symfony/Component/Yaml",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/Yaml.git",
-                "reference": "60ed7751671113cf1ee7d7778e691642c2e9acd8"
+                "reference": "0cd8e72071e46e15fc072270ae39ea1b66b10a9d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/Yaml/zipball/60ed7751671113cf1ee7d7778e691642c2e9acd8",
-                "reference": "60ed7751671113cf1ee7d7778e691642c2e9acd8",
+                "url": "https://api.github.com/repos/symfony/Yaml/zipball/0cd8e72071e46e15fc072270ae39ea1b66b10a9d",
+                "reference": "0cd8e72071e46e15fc072270ae39ea1b66b10a9d",
                 "shasum": ""
             },
             "require": {
                 "php": ">=5.3.3"
+            },
+            "require-dev": {
+                "symfony/phpunit-bridge": "~2.7"
             },
             "type": "library",
             "extra": {
@@ -956,12 +1079,14 @@
             ],
             "description": "Symfony Yaml Component",
             "homepage": "http://symfony.com",
-            "time": "2015-01-25 04:39:26"
+            "time": "2015-03-12 10:28:44"
         }
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": [],
+    "stability-flags": {
+        "pear/numbers_words": 20
+    },
     "prefer-stable": false,
     "prefer-lowest": false,
     "platform": {

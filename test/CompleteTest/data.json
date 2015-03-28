@@ -1,0 +1,48 @@
+{
+    "host": {
+        "name": "My Company",
+        "address": "No25, Street 1, 2nd Avenue",
+        "phoneNo": "+91 80 2236 1234",
+        "emailId": "contact@mycompany.com",
+        "tinNo": "021256369974",
+        "panNo": "ABCDE1234Z",
+        "cst": "CST1234546789",
+        "logo": "G:\\MyProjects\\DocxTemplateInPHP\\docxTemplateInPHP\\test\\CompleteTest\/logo.png"
+    },
+    "record": {
+        "no": "PO000001",
+        "date": "26-Mar-2015",
+        "quotation": {
+            "no": "QUOT000001",
+            "date": "01-Mar-2015"
+        },
+        "org": {
+            "name": "The Other Company",
+            "address": "No65, Street 3, 1st Avenue"
+        },
+        "netAmount": "25000.2",
+        "items": [
+            {
+                "name": "P001",
+                "quantity": "3",
+                "rate": "900",
+                "discount": "10",
+                "totalPrice": "2430.00"
+            },
+            {
+                "name": "P002",
+                "quantity": "10",
+                "rate": "1500.00",
+                "discount": "5",
+                "totalPrice": "14250.00"
+            },
+            {
+                "name": "P003",
+                "quantity": "1",
+                "rate": "8320.25",
+                "discount": "0",
+                "totalPrice": "8320.20"
+            }
+        ]
+    }
+}

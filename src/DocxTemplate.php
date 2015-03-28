@@ -5,14 +5,18 @@
  * Time: 10:05 AM
  */
 
+include_once dirname(__FILE__).'/../vendor/autoload.php';
+
 class DocxTemplate {
     private $template = null;
     private $keyStartChar = '[';
     private $keyEndChar   = ']';
-    private $workingDir = null;
-    private $workingFile = null;
+    private $slNoKey = "slNo";
+    private $locale = "en_IN";
 
     // for internal Use
+    private $workingDir = null;
+    private $workingFile = null;
     private $incompleteKeyNodes = array();
 
     function __construct($templatePath){
@@ -127,32 +131,68 @@ class DocxTemplate {
                     if($key->isKey() && $key->isComplete()){
                         $keyOptions = $key->options();
                         $keyName = $key->key();
-                        if(count($keyOptions) == 0){
-                            $keyValue = $this->getValue($keyName,$data);
 
-                            if($keyValue !== false){
-                                $textContent = $textContent.$keyValue;
-                            }else{
-                                $textContent = $textContent.$this->keyStartChar.$keyName.$this->keyEndChar;
+                        if(array_key_exists("repeat",$keyOptions)){
+                            $repeatType = "row";
+                            if(array_key_exists("repeatType",$keyOptions)){
+                                $repeatType = strtolower($keyOptions["repeatType"]);
                             }
-                        }else{
-                            if(array_key_exists("repeat",$keyOptions)){
-                                $repeatType = "row";
-                                if(array_key_exists("repeatType",$keyOptions)){
-                                    $repeatType = strtolower($keyOptions["repeatType"]);
-                                }
-                                switch($repeatType){
-                                    case "row":
-                                        // remove the current key from the w:t textContent
-                                        // and add the remaining key's original text unprocessed
-                                        for($j=$i+1;$j<count($keys);$j++){
-                                            $remainingKey = $keys[$j];
-                                            $textContent = $textContent.$remainingKey->originalKey();
+                            switch($repeatType){
+                                case "row":
+                                    // remove the current key from the w:t textContent
+                                    // and add the remaining key's original text unprocessed
+                                    for($j=$i+1;$j<count($keys);$j++){
+                                        $remainingKey = $keys[$j];
+                                        $textContent = $textContent.$remainingKey->originalKey();
+                                    }
+                                    $this->setTextContent($xmlElement,$textContent);
+                                    throw new RepeatRowException($keyName,$keyOptions["repeat"]);
+                            }
+                        }
+
+                        $keyValue = $this->getValue($keyName,$data);
+
+                        if($keyValue !== false){
+                            if(array_key_exists("numberFormat",$keyOptions)){
+                                switch(strtolower($keyOptions["numberFormat"])){
+                                    case "inwords":
+                                        $noToWords = new Numbers_Words();
+                                        $keyValue = $noToWords->toCurrency($keyValue,$this->locale);
+                                        break;
+                                    case "currency":
+                                        if($this->locale == "en_IN"){
+                                            $keyValue = "".$keyValue;
+                                            $keyValue = preg_replace("/\,/","",$keyValue);
+
+                                            $keyValueSplit = preg_split("/\./",$keyValue);
+                                            $decimalPart = $keyValueSplit[0];
+                                            $fractionPart = "00";
+                                            if(count($keyValueSplit) > 1){
+                                                $fractionPart = $keyValueSplit[1];
+                                            }
+
+                                            $processedDecimalPart = "";
+                                            $decimalPart = strrev($decimalPart);
+                                            $decimalPart = str_split($decimalPart);
+                                            for($k=0;$k<count($decimalPart);$k++){
+                                                if($k == 3 || $k == 5 || $k == 7 || $k == 9 || $k == 11 || $k == 13){
+                                                    $processedDecimalPart = ",".$processedDecimalPart;
+                                                }
+                                                $processedDecimalPart = $decimalPart[$k].$processedDecimalPart;
+                                            }
+                                            if(strlen($fractionPart) == 1){
+                                                $fractionPart = $fractionPart."0";
+                                            }
+                                            $keyValue = $processedDecimalPart.".".$fractionPart;
+
+                                        }else{
+                                            $keyValue = number_format($keyValue,2);
                                         }
-                                        $this->setTextContent($xmlElement,$textContent);
-                                        throw new RepeatRowException($keyName,$keyOptions["repeat"]);
                                 }
                             }
+                            $textContent = $textContent.$keyValue;
+                        }else{
+                            $textContent = $textContent.$this->keyStartChar.$keyName.$this->keyEndChar;
                         }
                     }else{
                         $textContent = $textContent.$key->key();
@@ -227,12 +267,15 @@ class DocxTemplate {
                                     $repeatingRowElement = $xmlElement->removeChild($childNode);
                                     $repeatingKeyName = $re->getName();
                                     if($repeatingArray && is_array($repeatingArray)){
+                                        $slNo = 1;
                                         foreach($repeatingArray as $repeatingData){
                                             $repeatedRowElement = $repeatingRowElement->cloneNode(true);
+                                            $repeatingData[$this->slNoKey] = $slNo;
                                             $newData = $data;
                                             $newData[$repeatingKeyName] = $repeatingData;
                                             $generatedRow = $this->parseXMLElement($repeatedRowElement,$newData);
                                             $xmlElement->insertBefore($generatedRow,$nextRow);
+                                            $slNo++;
                                         }
                                     }
                                 }else{
@@ -423,8 +466,6 @@ class DocxTemplate {
             unlink($dirPath);
         }
     }
-
-
 }
 
 class KeyNode{
