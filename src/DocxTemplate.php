@@ -13,11 +13,13 @@ class DocxTemplate {
     private $keyEndChar   = ']';
     private $slNoKey = "slNo";
     private $locale = "en_IN";
+    private $logFile = null;
 
     // for internal Use
     private $workingDir = null;
     private $workingFile = null;
     private $incompleteKeyNodes = array();
+    private $development = false;
 
     function __construct($templatePath){
         if(!file_exists($templatePath)){
@@ -26,7 +28,7 @@ class DocxTemplate {
         $this->template = $templatePath;
     }
 
-    function merge($data, $outputPath, $download = false){
+    function merge($data, $outputPath, $download = false, $protect=false){
         //open the Archieve to a temp folder
 
         $this->workingDir = sys_get_temp_dir()."/DocxTemplating";
@@ -68,6 +70,32 @@ class DocxTemplate {
             }
             if(file_exists($this->workingDir.'/'.$fileToParse["name"])){
                 $this->mergeFile($this->workingDir.'/'.$fileToParse["name"],$data);
+            }
+        }
+
+        if($protect === true){
+            $settingsFile = $this->workingDir.'/word/settings.xml';
+
+            $settingsDocument = new DOMDocument();
+            if($settingsDocument->load($settingsFile) === FALSE){
+                throw new Exception("Error in protecting the document");
+            }
+
+            $documentProtectionElement = $settingsDocument->createElement("w:documentProtection");
+            $documentProtectionElement->setAttribute("w:cryptAlgorithmClass","hash");
+            $documentProtectionElement->setAttribute("w:cryptAlgorithmSid","4");
+            $documentProtectionElement->setAttribute("w:cryptAlgorithmType","typeAny");
+            $documentProtectionElement->setAttribute("w:cryptProviderType","rsaFull");
+            $documentProtectionElement->setAttribute("w:cryptSpinCount","100000");
+            $documentProtectionElement->setAttribute("w:edit","readOnly");
+            $documentProtectionElement->setAttribute("w:enforcement","1");
+            $documentProtectionElement->setAttribute("w:hash","agIYzNUC1FNp4sJAazkA+rOu3Bw=");
+            $documentProtectionElement->setAttribute("w:salt","ydP+pf0vmKAQkaM0gyb9TQ==");
+
+            $settingsDocument->documentElement->appendChild($documentProtectionElement);
+
+            if($xmlElement->save($settingsFile) === FALSE){
+                throw new Exception("Error in creating output");
             }
         }
 
@@ -143,6 +171,11 @@ class DocxTemplate {
                         $keyOptions = $key->options();
                         $keyName = $key->key();
 
+                        if($keyName == "development"){
+                            $this->development = true;
+                            continue;
+                        }
+
                         if(array_key_exists("repeat",$keyOptions)){
                             $repeatType = "row";
                             if(array_key_exists("repeatType",$keyOptions)){
@@ -203,7 +236,13 @@ class DocxTemplate {
                             }
                             $textContent = $textContent.$keyValue;
                         }else{
-                            $textContent = $textContent.$this->keyStartChar.$keyName.$this->keyEndChar;
+                            if($this->development){
+                                // in development mode , show the unprocessed keys in output
+                                $textContent = $textContent.$key->originalKey();
+                            }else{
+                                // in production mode , don't show the unprocessed keys in output
+                                // no append to $textContent
+                            }
                         }
                     }else{
                         $textContent = $textContent.$key->key();
@@ -216,8 +255,8 @@ class DocxTemplate {
                 $docPrElement = $xmlElement->getElementsByTagNameNS("http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing","docPr")->item(0);
                 if($docPrElement !== null){
                     $altText = $docPrElement->getAttribute("descr");
-                    if(strlen($altText)>2){
-                        $keyNode = new KeyNode($altText,true,true,$docPrElement);
+                    if(strlen($altText)>2 && $this->startsWith($altText,$this->keyStartChar) && $this->endsWith($altText,$this->keyEndChar)){
+                        $keyNode = new KeyNode($altText,true,true,$xmlElement);
                         $imagePath = $this->getValue($keyNode->key(),$data);
 
                         $aBlipElem = $xmlElement->getElementsByTagName("blip")->item(0);
@@ -249,6 +288,14 @@ class DocxTemplate {
 
                                 $relDocument->save($relFile);
                                 copy($imagePath,$templateImagePath);
+                            }
+                        }else{
+                            if($this->development){
+                                // in development mode, show the template Image in the Output
+                            }else{
+                                // in production mode, remove the template Imge from the output
+                                $xmlElement->parentNode->removeChild($xmlElement);
+                                $xmlElement = $xmlElement->ownerDocument->createTextNode("");
                             }
                         }
                     }
@@ -431,7 +478,11 @@ class DocxTemplate {
     }
 
     private function log($level,$message){
-        echo $message;
+        if(isset($this->logFile)){
+            error_log($message,3,$this->logFile);
+        }else{
+            error_log($message);
+        }
     }
 
     private function startsWith($haystack, $needle) {
