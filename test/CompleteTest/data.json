@@ -25,21 +25,21 @@
             {
                 "name": "P001",
                 "quantity": "3",
-                "rate": "900",
+                "unitPrice": "900",
                 "discount": "10",
                 "totalPrice": "2430.00"
             },
             {
                 "name": "P002",
                 "quantity": "10",
-                "rate": "1500.00",
+                "unitPrice": "1500.00",
                 "discount": "5",
                 "totalPrice": "14250.00"
             },
             {
                 "name": "P003",
                 "quantity": "1",
-                "rate": "8320.25",
+                "unitPrice": "8320.25",
                 "discount": "0",
                 "totalPrice": "8320.20"
             }

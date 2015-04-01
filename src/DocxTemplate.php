@@ -26,7 +26,7 @@ class DocxTemplate {
         $this->template = $templatePath;
     }
 
-    function merge($data, $outputPath = null){
+    function merge($data, $outputPath, $download = false){
         //open the Archieve to a temp folder
 
         $this->workingDir = sys_get_temp_dir()."/DocxTemplating";
@@ -91,15 +91,26 @@ class DocxTemplate {
         $zip->close();
 
         //once merged file is available copy it to $outputPath or write as downloadable file
-        if(isset($outputPath)){
+        if($download != false){
             copy($mergedFile,$outputPath);
         }else{
+            $fInfo = new finfo(FILEINFO_MIME);
+            $mimeType = $fInfo->file($mergedFile);
 
+            header('Content-Type:'.$mimeType,true);
+            header('Content-Length:'.filesize($mergedFile),true);
+            header('Content-Disposition: attachment; filename="'.$outputPath.'"',true);
+            if(readfile($mergedFile) === FALSE){
+                throw new \Exception("Error in reading the file");
+            }
         }
 
         // remove workingDir and workingFile
         unlink($workingFile);
         $this->deleteDir($this->workingDir);
+        if($download === true){
+            exit;
+        }
     }
 
     private function mergeFile($file,$data){
@@ -235,9 +246,6 @@ class DocxTemplate {
                                 $newRelElement->setAttribute("Target",$templateImageRelPath);
 
                                 $relDocument->documentElement->appendChild($newRelElement);
-
-
-
 
                                 $relDocument->save($relFile);
                                 copy($imagePath,$templateImagePath);
