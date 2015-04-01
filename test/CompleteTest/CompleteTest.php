@@ -20,7 +20,7 @@ class CompleteTest extends PHPUnit_Framework_TestCase{
         //echo json_encode($data);
 
         //testing merge method
-        $docxTemplate->merge($data,$outputPath);
+        $docxTemplate->merge($data,$outputPath,false,true);
 
         $this->assertTrue(file_exists($outputPath));
 

@@ -94,7 +94,7 @@ class DocxTemplate {
 
             $settingsDocument->documentElement->appendChild($documentProtectionElement);
 
-            if($xmlElement->save($settingsFile) === FALSE){
+            if($settingsDocument->save($settingsFile) === FALSE){
                 throw new Exception("Error in creating output");
             }
         }
@@ -119,7 +119,7 @@ class DocxTemplate {
         $zip->close();
 
         //once merged file is available copy it to $outputPath or write as downloadable file
-        if($download != false){
+        if($download == false){
             copy($mergedFile,$outputPath);
         }else{
             $fInfo = new finfo(FILEINFO_MIME);
@@ -294,7 +294,6 @@ class DocxTemplate {
                                 // in development mode, show the template Image in the Output
                             }else{
                                 // in production mode, remove the template Imge from the output
-                                $xmlElement->parentNode->removeChild($xmlElement);
                                 $xmlElement = $xmlElement->ownerDocument->createTextNode("");
                             }
                         }
