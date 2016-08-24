@@ -1,5 +1,7 @@
 <?php
 
+use icircle\Template\Docx\DocxTemplate;
+
 include_once dirname(__FILE__).'/../../src/DocxTemplate.php';
 
 class CompleteTest extends PHPUnit_Framework_TestCase{

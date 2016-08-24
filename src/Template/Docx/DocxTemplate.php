@@ -4,8 +4,10 @@
  * Date: 16/3/15
  * Time: 10:05 AM
  */
+namespace icircle\Template\Docx;
 
-include_once dirname(__FILE__).'/../vendor/autoload.php';
+use icircle\Template\Exceptions\RepeatRowException;
+use icircle\Template\KeyNode;
 
 class DocxTemplate {
     private $template = null;
@@ -23,7 +25,7 @@ class DocxTemplate {
 
     function __construct($templatePath){
         if(!file_exists($templatePath)){
-            throw new Exception("Invalid Template Path");
+            throw new \Exception("Invalid Template Path");
         }
         $this->template = $templatePath;
     }
@@ -37,19 +39,19 @@ class DocxTemplate {
         }
         $workingFile = tempnam($this->workingDir,'');
         if($workingFile === FALSE || !copy($this->template,$workingFile)){
-            throw new Exception("Error in initializing working copy of the template");
+            throw new \Exception("Error in initializing working copy of the template");
         }
         $this->workingDir = $workingFile."_";
-        $zip = new ZipArchive();
+        $zip = new \ZipArchive();
         if($zip->open($workingFile) === TRUE){
             $zip->extractTo($this->workingDir);
             $zip->close();
         }else{
-            throw new Exception('Failed to extract Template');
+            throw new \Exception('Failed to extract Template');
         }
 
         if(!file_exists($this->workingDir)){
-            throw new Exception('Failed to extract Template');
+            throw new \Exception('Failed to extract Template');
         }
 
         $filesToParse = array(
@@ -66,7 +68,7 @@ class DocxTemplate {
 
         foreach($filesToParse as $fileToParse){
             if(isset($fileToParse["required"]) && !file_exists($this->workingDir.'/'.$fileToParse["name"])){
-                throw new Exception("Can not merge, Template is corrupted");
+                throw new \Exception("Can not merge, Template is corrupted");
             }
             if(file_exists($this->workingDir.'/'.$fileToParse["name"])){
                 $this->mergeFile($this->workingDir.'/'.$fileToParse["name"],$data);
@@ -76,9 +78,9 @@ class DocxTemplate {
         if($protect === true){
             $settingsFile = $this->workingDir.'/word/settings.xml';
 
-            $settingsDocument = new DOMDocument();
+            $settingsDocument = new \DOMDocument();
             if($settingsDocument->load($settingsFile) === FALSE){
-                throw new Exception("Error in protecting the document");
+                throw new \Exception("Error in protecting the document");
             }
 
             $documentProtectionElement = $settingsDocument->createElement("w:documentProtection");
@@ -95,20 +97,20 @@ class DocxTemplate {
             $settingsDocument->documentElement->appendChild($documentProtectionElement);
 
             if($settingsDocument->save($settingsFile) === FALSE){
-                throw new Exception("Error in creating output");
+                throw new \Exception("Error in creating output");
             }
         }
 
         // once merge is happened , zip the working directory and rename
         $mergedFile = $this->workingDir.'/output.docx';
-        if($zip->open($mergedFile,ZipArchive::CREATE) === FALSE){
-            throw new Exception("Error in creating output");
+        if($zip->open($mergedFile,\ZipArchive::CREATE) === FALSE){
+            throw new \Exception("Error in creating output");
         }
 
         // Create recursive directory iterator
-        $files = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($this->workingDir,FilesystemIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::LEAVES_ONLY
+        $files = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($this->workingDir,\FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::LEAVES_ONLY
         );
 
         foreach($files as $name=>$file){
@@ -122,7 +124,7 @@ class DocxTemplate {
         if($download == false){
             copy($mergedFile,$outputPath);
         }else{
-            $fInfo = new finfo(FILEINFO_MIME);
+            $fInfo = new \finfo(FILEINFO_MIME);
             $mimeType = $fInfo->file($mergedFile);
 
             header('Content-Type:'.$mimeType,true);
@@ -143,21 +145,21 @@ class DocxTemplate {
 
     private function mergeFile($file,$data){
 
-        $xmlElement = new DOMDocument();
+        $xmlElement = new \DOMDocument();
         if($xmlElement->load($file) === FALSE){
-            throw new Exception("Error in merging , Template might be corrupted ");
+            throw new \Exception("Error in merging , Template might be corrupted ");
         }
 
         $this->workingFile = $file;
         $this->parseXMLElement($xmlElement->documentElement,$data);
 
         if($xmlElement->save($file) === FALSE){
-            throw new Exception("Error in creating output");
+            throw new \Exception("Error in creating output");
         }
 
     }
 
-    private function parseXMLElement(DOMElement $xmlElement,$data){
+    private function parseXMLElement(\DOMElement $xmlElement,$data){
 
         $tagName = $xmlElement->tagName;
         switch(strtoupper($tagName)){
@@ -200,7 +202,7 @@ class DocxTemplate {
                             if(array_key_exists("numberFormat",$keyOptions)){
                                 switch(strtolower($keyOptions["numberFormat"])){
                                     case "inwords":
-                                        $noToWords = new Numbers_Words();
+                                        $noToWords = new \Numbers_Words();
                                         $keyValue = $noToWords->toCurrency($keyValue,$this->locale);
                                         break;
                                     case "currency":
@@ -266,7 +268,7 @@ class DocxTemplate {
                             $relFile = $this->workingDir.'/word/_rels/'.$workingFileName.'.rels';
 
                             if(file_exists($relFile)){
-                                $relDocument = new DOMDocument();
+                                $relDocument = new \DOMDocument();
                                 $relDocument->load($relFile);
                                 $relElements = $relDocument->getElementsByTagName("Relationship");
 
@@ -349,7 +351,7 @@ class DocxTemplate {
      * this method should be called sequentially for all the <w:t> elements in the order they appear in the document xml
      *
      */
-    private function getTemplateKeys(DOMElement $wtElement){
+    private function getTemplateKeys(\DOMElement $wtElement){
         if(strtoupper($wtElement->tagName) != "W:T"){
             $this->log(LOG_ALERT,"Invalid element for finding template keys : Line ".$wtElement->getLineNo());
             return false;
@@ -508,7 +510,7 @@ class DocxTemplate {
         return $keyValue;
     }
 
-    private function setTextContent(DOMNode $node,$value){
+    private function setTextContent(\DOMNode $node,$value){
         $node->nodeValue = "";
         return $node->appendChild($node->ownerDocument->createTextNode($value));
     }
@@ -526,137 +528,3 @@ class DocxTemplate {
     }
 }
 
-class KeyNode{
-    private $key = null;
-    private $originalKey = null;
-    private $isKey = false;
-    private $isComplete = false;
-    private $element = null;
-    private $options = array();
-
-    function __construct($key,$isKey,$isComplete,DOMElement $element){
-        $this->key = $key;
-        $this->originalKey = $key;
-        $this->isKey = $isKey;
-        $this->isComplete = $isComplete;
-        $this->element = $element;
-
-        if($this->isKey && $this->isComplete){
-            //parse the complete key to extract options
-            $options = preg_split("/;/",substr($this->key,1,strlen($this->key)-2));
-            if(count($options) > 1){
-                for($i=1;$i<count($options);$i++){
-                    $option = preg_split("/=/",$options[$i]);
-                    $optionName = trim($option[0]);
-                    $optionValue = true;
-                    if(count($option) > 1){
-                        $optionValue = trim($option[1]);
-                    }
-                    $this->options[$optionName] = $optionValue;
-                }
-            }
-            $this->key = trim($options[0]);
-            //echo "\n".$this->key;
-        }
-
-    }
-
-    /**
-     * @return string
-     */
-    public function key(){
-        return $this->key;
-    }
-
-    /**
-     * @return string
-     */
-    public function originalKey(){
-        return $this->originalKey;
-    }
-
-    /**
-     * @return int
-     */
-    public function isKey(){
-        return $this->isKey;
-    }
-
-    /**
-     * @return boolean
-     */
-    public function isComplete(){
-        return $this->isComplete;
-    }
-
-    /**
-     * @return DOMElement
-     */
-    public function element(){
-        return $this->element;
-    }
-
-    /**
-     * @return array
-     */
-    public function options(){
-        return $this->options;
-    }
-
-}
-
-// Exceptions to handle repetition
-
-class RepeatTextException extends Exception{
-    private $name = null;
-    private $key = null;
-
-    function __construct($name,$key){
-        $this->name = $name;
-        $this->key = $key;
-    }
-
-    public function getKey(){
-        return $this->key;
-    }
-
-    public function getName(){
-        return $this->name;
-    }
-}
-
-class RepeatParagraphException extends Exception{
-    private $name = null;
-    private $key = null;
-
-    function __construct($name,$key){
-        $this->name = $name;
-        $this->key = $key;
-    }
-
-    public function getKey(){
-        return $this->key;
-    }
-
-    public function getName(){
-        return $this->name;
-    }
-}
-
-class RepeatRowException extends Exception{
-    private $name = null;
-    private $key = null;
-
-    function __construct($name,$key){
-        $this->name = $name;
-        $this->key = $key;
-    }
-
-    public function getKey(){
-        return $this->key;
-    }
-
-    public function getName(){
-        return $this->name;
-    }
-}

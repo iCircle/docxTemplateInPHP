@@ -1,6 +1,6 @@
 <?php
 
-include_once dirname(__FILE__).'/../../src/DocxTemplate.php';
+use icircle\Template\Docx\DocxTemplate;
 
 class SimpleTest extends PHPUnit_Framework_TestCase{
 

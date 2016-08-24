@@ -1,2 +1,5 @@
 /vendor/
 /test/SimpleTest/mergedOutput.docx
+/.buildpath
+/.project
+/.settings/
