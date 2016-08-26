@@ -1,11 +1,13 @@
 <?php
 
+namespace icircle\tests\Template\KeyNodeTest;
+
 use icircle\Template\KeyNode;
 
-class KeyNodeTest extends PHPUnit_Framework_TestCase{
+class Test extends \PHPUnit_Framework_TestCase{
 
     public function testKeyNode(){
-        $domDocument = new DOMDocument();
+        $domDocument = new \DOMDocument();
         $wtElement = $domDocument->createElement("w:t");
 
         $key = "[item;repeat=record.items;repeatType=row]";

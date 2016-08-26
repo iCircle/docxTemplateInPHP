@@ -1,25 +1,20 @@
 <?php
 
-use icircle\Template\Docx\DocxTemplate;
+namespace icircle\tests\Template\Docx\ImageReplaceTest;
 
-class ImageReplaceTest extends PHPUnit_Framework_TestCase{
+use icircle\Template\Docx\DocxTemplate;
+use icircle\tests\Template\Util;
+
+class Test extends \PHPUnit_Framework_TestCase{
 
     public function testMerge(){
         $templatePath = dirname(__FILE__).'/template.docx';
 
         $docxTemplate = new DocxTemplate($templatePath);
-        $outputDir = dirname(__FILE__).'/output';
-
-        if(file_exists($outputDir)){
-            DocxTemplate::deleteDir($outputDir);
-        }
-        $this->assertFalse(file_exists($outputDir));
-        mkdir($outputDir,0777,true);
+        $outputDir = Util::createTempFile('/icircle/template/docx');
 
         $outputPath = $outputDir.'/mergedOutput.docx';
-        if(file_exists($outputPath)){
-            unlink($outputPath);
-        }
+        
         $record = array();
         $record["headerImage"] = dirname(__FILE__).'/headerImage.png';
         $record["bodyImage"]   = dirname(__FILE__).'/bodyImage.png';
@@ -32,26 +27,26 @@ class ImageReplaceTest extends PHPUnit_Framework_TestCase{
 
         $this->assertTrue(file_exists($outputPath));
 
-        $resultZip = new ZipArchive();
+        $resultZip = new \ZipArchive();
         $resultZip->open($outputPath);
         $resultZip->extractTo($outputPath."_");
 
-        $resultDoc = new DOMDocument();
+        $resultDoc = new \DOMDocument();
         $resultDoc->load($outputPath."_"."/word/_rels/header1.xml.rels");
         $relElements = $resultDoc->documentElement->getElementsByTagName('Relationship');
         $this->assertTrue($relElements->length == 2);
 
-        $resultDoc = new DOMDocument();
+        $resultDoc = new \DOMDocument();
         $resultDoc->load($outputPath."_"."/word/_rels/document.xml.rels");
         $relElements = $resultDoc->documentElement->getElementsByTagName('Relationship');
         $this->assertTrue($relElements->length == 12);
 
-        $resultDoc = new DOMDocument();
+        $resultDoc = new \DOMDocument();
         $resultDoc->load($outputPath."_"."/word/_rels/footer1.xml.rels");
         $relElements = $resultDoc->documentElement->getElementsByTagName('Relationship');
         $this->assertTrue($relElements->length == 2);
 
-        $resultDoc = new DOMDocument();
+        $resultDoc = new \DOMDocument();
         $resultDoc->load($outputPath."_"."/word/document.xml");
         $imageElements = $resultDoc->documentElement->getElementsByTagNameNS("http://schemas.openxmlformats.org/wordprocessingml/2006/main","drawing");
         $this->assertTrue($imageElements->length == 2);
@@ -64,18 +59,10 @@ class ImageReplaceTest extends PHPUnit_Framework_TestCase{
         $templatePath = dirname(__FILE__).'/templateDevelopment.docx';
 
         $docxTemplate = new DocxTemplate($templatePath);
-        $outputDir = dirname(__FILE__).'/output';
-
-        if(file_exists($outputDir)){
-            DocxTemplate::deleteDir($outputDir);
-        }
-        $this->assertFalse(file_exists($outputDir));
-        mkdir($outputDir,0777,true);
+        $outputDir = Util::createTempFile('/icircle/template/docx');
 
         $outputPath = $outputDir.'/mergedOutput.docx';
-        if(file_exists($outputPath)){
-            unlink($outputPath);
-        }
+
         $record = array();
         $record["headerImage"] = dirname(__FILE__).'/headerImage.png';
         $record["bodyImage"]   = dirname(__FILE__).'/bodyImage.png';
@@ -88,11 +75,11 @@ class ImageReplaceTest extends PHPUnit_Framework_TestCase{
 
         $this->assertTrue(file_exists($outputPath));
 
-        $resultZip = new ZipArchive();
+        $resultZip = new \ZipArchive();
         $resultZip->open($outputPath);
         $resultZip->extractTo($outputPath."_");
 
-        $resultDoc = new DOMDocument();
+        $resultDoc = new \DOMDocument();
         $resultDoc->load($outputPath."_"."/word/document.xml");
         $imageElements = $resultDoc->documentElement->getElementsByTagNameNS("http://schemas.openxmlformats.org/wordprocessingml/2006/main","drawing");
         $this->assertTrue($imageElements->length == 3);
@@ -101,10 +88,6 @@ class ImageReplaceTest extends PHPUnit_Framework_TestCase{
 
     }
 
-
 }
-
-
-
 
 ?>

@@ -11,7 +11,7 @@ class KeyNode {
 	private $element = null;
 	private $options = array();
 	
-	function __construct($key,$isKey,$isComplete,DOMElement $element){
+	function __construct($key,$isKey,$isComplete,\DOMElement $element){
 		$this->key = $key;
 		$this->originalKey = $key;
 		$this->isKey = $isKey;

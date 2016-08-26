@@ -31,7 +31,8 @@
 	},
 	"autoload" : {
 		"psr-4" : {
-			"icircle\\" : "src/"
+			"icircle\\" : "src/",
+			"icircle\\tests\\" : "tests/"
 		}
 	}
 }

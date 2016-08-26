@@ -1,5 +1,8 @@
 # docxTemplateInPHP
 Create Templates in MS Word docx format and use them Creating Business documents using PHP 
+## What's New
+Changed the namespace of `DocxTemplate` from default to `icircle\Template\Docx`
+
 
 ## Introduction
 This library merges the data in php array into docx file.
@@ -24,7 +27,7 @@ the possible keys are
 
 ## Basic Usage
 ```php
-include_once 'DocxTemplate.php';
+use icircle\Template\Docx\DocxTemplate;
 
 $docxTemplate = new DocxTemplate('path/to/template/file');
 $dataArray = array() // fill the $dataArray with data

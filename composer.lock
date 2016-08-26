@@ -1,10 +1,11 @@
 {
     "_readme": [
         "This file locks the dependencies of your project to a known state",
-        "Read more about it at http://getcomposer.org/doc/01-basic-usage.md#composer-lock-the-lock-file",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#composer-lock-the-lock-file",
         "This file is @generated automatically"
     ],
-    "hash": "11f244a074751b250d702c8a14529117",
+    "hash": "92d833fefb1001b83cfb661cd300f583",
+    "content-hash": "4db594ebcc80baaf42bbc440ba552c22",
     "packages": [
         {
             "name": "pear/math_biginteger",
