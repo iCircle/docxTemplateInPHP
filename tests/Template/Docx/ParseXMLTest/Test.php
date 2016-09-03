@@ -11,7 +11,7 @@ class Test extends \PHPUnit_Framework_TestCase{
 
         $templateDoc = file_get_contents(dirname(__FILE__).'/document.xml');
 
-        $outputDir = Util::createTempFile('/icircle/template/docx');
+        $outputDir = Util::createTempDir('/icircle/template/docx');
         
         $document = new \DOMDocument();
         $document->preserveWhiteSpace = false;
@@ -47,7 +47,7 @@ class Test extends \PHPUnit_Framework_TestCase{
 
         $templateDoc = file_get_contents(dirname(__FILE__).'/document.xml');
 
-        $outputDir = Util::createTempFile('/icircle/template/docx');
+        $outputDir = Util::createTempDir('/icircle/template/docx');
         
         $document = new \DOMDocument();
         $document->preserveWhiteSpace = false;

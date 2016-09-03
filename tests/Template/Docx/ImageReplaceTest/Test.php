@@ -11,7 +11,7 @@ class Test extends \PHPUnit_Framework_TestCase{
         $templatePath = dirname(__FILE__).'/template.docx';
 
         $docxTemplate = new DocxTemplate($templatePath);
-        $outputDir = Util::createTempFile('/icircle/template/docx');
+        $outputDir = Util::createTempDir('/icircle/template/docx');
 
         $outputPath = $outputDir.'/mergedOutput.docx';
         
@@ -59,7 +59,7 @@ class Test extends \PHPUnit_Framework_TestCase{
         $templatePath = dirname(__FILE__).'/templateDevelopment.docx';
 
         $docxTemplate = new DocxTemplate($templatePath);
-        $outputDir = Util::createTempFile('/icircle/template/docx');
+        $outputDir = Util::createTempDir('/icircle/template/docx');
 
         $outputPath = $outputDir.'/mergedOutput.docx';
 

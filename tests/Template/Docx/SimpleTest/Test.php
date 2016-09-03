@@ -11,7 +11,7 @@ class Test extends \PHPUnit_Framework_TestCase{
         $templatePath = dirname(__FILE__).'/template.docx';
 
         $docxTemplate = new DocxTemplate($templatePath);
-        $outputPath = Util::createTempFile('/icircle/template/docx').'/mergedOutput.docx';
+        $outputPath = Util::createTempDir('/icircle/template/docx').'/mergedOutput.docx';
 
         $this->assertFalse(file_exists($outputPath));
         //testing merge method
