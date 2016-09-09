@@ -5,7 +5,7 @@ namespace icircle\tests\Template\Docx\RepeatRowTest;
 use icircle\Template\Docx\DocxTemplate;
 use icircle\tests\Template\Util;
 
-class RepeatRowTest extends \PHPUnit_Framework_TestCase{
+class Test extends \PHPUnit_Framework_TestCase{
 
     public function testRowRepeating(){
 

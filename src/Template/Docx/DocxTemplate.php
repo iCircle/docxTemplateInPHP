@@ -8,6 +8,7 @@ namespace icircle\Template\Docx;
 
 use icircle\Template\Exceptions\RepeatRowException;
 use icircle\Template\KeyNode;
+use icircle\Template\Exceptions\RepeatParagraphException;
 
 class DocxTemplate {
     private $template = null;
@@ -158,6 +159,49 @@ class DocxTemplate {
         }
 
     }
+    
+    private function formatValue($keyValue,$keyOptions){
+    	if($keyValue !== false){
+    		if(array_key_exists("numberFormat",$keyOptions)){
+    			switch(strtolower($keyOptions["numberFormat"])){
+    				case "inwords":
+    					$noToWords = new \Numbers_Words();
+    					$keyValue = $noToWords->toCurrency($keyValue,$this->locale);
+    					break;
+    				case "currency":
+    					if($this->locale == "en_IN"){
+    						$keyValue = "".$keyValue;
+    						$keyValue = preg_replace("/\,/","",$keyValue);
+    	
+    						$keyValueSplit = preg_split("/\./",$keyValue);
+    						$decimalPart = $keyValueSplit[0];
+    						$fractionPart = "00";
+    						if(count($keyValueSplit) > 1){
+    							$fractionPart = $keyValueSplit[1];
+    						}
+    	
+    						$processedDecimalPart = "";
+    						$decimalPart = strrev($decimalPart);
+    						$decimalPart = str_split($decimalPart);
+    						for($k=0;$k<count($decimalPart);$k++){
+    							if($k == 3 || $k == 5 || $k == 7 || $k == 9 || $k == 11 || $k == 13){
+    								$processedDecimalPart = ",".$processedDecimalPart;
+    							}
+    							$processedDecimalPart = $decimalPart[$k].$processedDecimalPart;
+    						}
+    						if(strlen($fractionPart) == 1){
+    							$fractionPart = $fractionPart."0";
+    						}
+    						$keyValue = $processedDecimalPart.".".$fractionPart;
+    	
+    					}else{
+    						$keyValue = number_format($keyValue,2);
+    					}
+    			}
+    		}
+    	}
+    	return $keyValue;
+    }
 
     private function parseXMLElement(\DOMElement $xmlElement,$data){
 
@@ -179,12 +223,57 @@ class DocxTemplate {
                         }
 
                         if(array_key_exists("repeat",$keyOptions)){
-                            $repeatType = "row";
+                            $repeatType = "text";
                             if(array_key_exists("repeatType",$keyOptions)){
                                 $repeatType = strtolower($keyOptions["repeatType"]);
                             }
                             switch($repeatType){
-                                case "row":
+                            	case "text":
+                            		$keyValue = $this->getValue($keyOptions["repeat"],$data);
+                            		$keyNameParts = preg_split('/\./', $keyName);
+                            		if($keyValue != false && is_array($keyValue) && $keyNameParts !== false){
+                            			$repeatingKeyName = $keyNameParts[0];
+                            			foreach ($keyValue as $repeatingKeyValue){
+                            				$repeatingValue = $this->getValue($keyName,array($repeatingKeyName=>$repeatingKeyValue));
+                            				if($repeatingValue != false){
+                            					if(!is_string($repeatingValue)){
+                            						$repeatingValue = json_encode($repeatingValue);
+                            					}
+                            					$repeatingValue = $this->formatValue($repeatingValue, $keyOptions);
+                            					$textContent = $textContent.$repeatingValue;
+                            				}else{
+                            					if($this->development){
+                            						// in development mode , show the unprocessed keys in output
+                            						$textContent = $textContent.$repeatingKeyName;
+                            					}else{
+                            						// in production mode , don't show the unprocessed keys in output
+                            						// no append to $textContent
+                            					}
+                            				}
+                            			}
+                            			continue;
+                            		}else{
+                            			if($this->development){
+                            				// in development mode , show the unprocessed keys in output
+                            				$textContent = $textContent.$key->originalKey();
+                            			}else{
+                            				// in production mode , don't show the unprocessed keys in output
+                            				// no append to $textContent
+                            			}
+                            		}
+                            		
+                            		break;
+                            	case "paragraph":
+                            			// remove the current key from the w:t textContent
+                            			// and add the remaining key's original text unprocessed
+                            			for($j=$i+1;$j<count($keys);$j++){
+                            				$remainingKey = $keys[$j];
+                            				$textContent = $textContent.$remainingKey->originalKey();
+                            			}
+                            			$this->setTextContent($xmlElement,$textContent);
+                            			throw new RepeatParagraphException($keyName,$keyOptions["repeat"]);	
+                            		break;
+                            	case "row":
                                     // remove the current key from the w:t textContent
                                     // and add the remaining key's original text unprocessed
                                     for($j=$i+1;$j<count($keys);$j++){
@@ -199,44 +288,7 @@ class DocxTemplate {
                         $keyValue = $this->getValue($keyName,$data);
 
                         if($keyValue !== false){
-                            if(array_key_exists("numberFormat",$keyOptions)){
-                                switch(strtolower($keyOptions["numberFormat"])){
-                                    case "inwords":
-                                        $noToWords = new \Numbers_Words();
-                                        $keyValue = $noToWords->toCurrency($keyValue,$this->locale);
-                                        break;
-                                    case "currency":
-                                        if($this->locale == "en_IN"){
-                                            $keyValue = "".$keyValue;
-                                            $keyValue = preg_replace("/\,/","",$keyValue);
-
-                                            $keyValueSplit = preg_split("/\./",$keyValue);
-                                            $decimalPart = $keyValueSplit[0];
-                                            $fractionPart = "00";
-                                            if(count($keyValueSplit) > 1){
-                                                $fractionPart = $keyValueSplit[1];
-                                            }
-
-                                            $processedDecimalPart = "";
-                                            $decimalPart = strrev($decimalPart);
-                                            $decimalPart = str_split($decimalPart);
-                                            for($k=0;$k<count($decimalPart);$k++){
-                                                if($k == 3 || $k == 5 || $k == 7 || $k == 9 || $k == 11 || $k == 13){
-                                                    $processedDecimalPart = ",".$processedDecimalPart;
-                                                }
-                                                $processedDecimalPart = $decimalPart[$k].$processedDecimalPart;
-                                            }
-                                            if(strlen($fractionPart) == 1){
-                                                $fractionPart = $fractionPart."0";
-                                            }
-                                            $keyValue = $processedDecimalPart.".".$fractionPart;
-
-                                        }else{
-                                            $keyValue = number_format($keyValue,2);
-                                        }
-                                }
-                            }
-                            $textContent = $textContent.$keyValue;
+                            $textContent = $textContent.$this->formatValue($keyValue, $keyOptions);
                         }else{
                             if($this->development){
                                 // in development mode , show the unprocessed keys in output
@@ -336,6 +388,27 @@ class DocxTemplate {
                                     }
                                 }else{
                                     throw $re;
+                                }
+                            }catch (RepeatParagraphException $pe){
+                                if(strtoupper($childNode->tagName) === "W:P"){
+                                    $repeatingArray = $this->getValue($pe->getKey(),$data);
+                                    $nextParagraph = $childNode->nextSibling;
+                                    $repeatingParagraphElement = $xmlElement->removeChild($childNode);
+                                    $repeatingKeyName = $pe->getName();
+                                    if($repeatingArray && is_array($repeatingArray)){
+                                        $slNo = 1;
+                                        foreach($repeatingArray as $repeatingData){
+                                            $repeatedParagraphElement = $repeatingParagraphElement->cloneNode(true);
+                                            $repeatingData[$this->slNoKey] = $slNo;
+                                            $newData = $data;
+                                            $newData[$repeatingKeyName] = $repeatingData;
+                                            $generatedRow = $this->parseXMLElement($repeatedParagraphElement,$newData);
+                                            $xmlElement->insertBefore($generatedRow,$nextParagraph);
+                                            $slNo++;
+                                        }
+                                    }
+                                }else{
+                                    throw $pe;
                                 }
                             }
                         }
