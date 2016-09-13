@@ -9,6 +9,7 @@ namespace icircle\Template\Docx;
 use icircle\Template\Exceptions\RepeatRowException;
 use icircle\Template\KeyNode;
 use icircle\Template\Exceptions\RepeatParagraphException;
+use icircle\Template\Exceptions\RepeatListException;
 
 class DocxTemplate {
     private $template = null;
@@ -23,7 +24,7 @@ class DocxTemplate {
     private $workingFile = null;
     private $incompleteKeyNodes = array();
     private $development = false;
-
+    
     function __construct($templatePath){
         if(!file_exists($templatePath)){
             throw new \Exception("Invalid Template Path");
@@ -264,14 +265,24 @@ class DocxTemplate {
                             		
                             		break;
                             	case "paragraph":
-                            			// remove the current key from the w:t textContent
-                            			// and add the remaining key's original text unprocessed
-                            			for($j=$i+1;$j<count($keys);$j++){
-                            				$remainingKey = $keys[$j];
-                            				$textContent = $textContent.$remainingKey->originalKey();
-                            			}
-                            			$this->setTextContent($xmlElement,$textContent);
-                            			throw new RepeatParagraphException($keyName,$keyOptions["repeat"]);	
+                            		// remove the current key from the w:t textContent
+                            		// and add the remaining key's original text unprocessed
+                            		for($j=$i+1;$j<count($keys);$j++){
+                            			$remainingKey = $keys[$j];
+                            			$textContent = $textContent.$remainingKey->originalKey();
+                            		}
+                            		$this->setTextContent($xmlElement,$textContent);
+                            		throw new RepeatParagraphException($keyName,$keyOptions["repeat"]);
+                            		break;
+                            	case "list":
+                            		// remove the current key from the w:t textContent
+                            		// and add the remaining key's original text unprocessed
+                            		for($j=$i+1;$j<count($keys);$j++){
+                            			$remainingKey = $keys[$j];
+                            			$textContent = $textContent.$remainingKey->originalKey();
+                            		}
+                            		$this->setTextContent($xmlElement,$textContent);
+                            		throw new RepeatListException($keyName,$keyOptions["repeat"]);	
                             		break;
                             	case "row":
                                     // remove the current key from the w:t textContent
@@ -361,13 +372,14 @@ class DocxTemplate {
                     foreach($childNodes as $childNode){
                         $childNodesArray[] = $childNode;
                     }
-                    foreach($childNodesArray as $childNode){
+                    for($i = 0; $i < count($childNodesArray) ; $i++){
+                    	$childNode = $childNodesArray[$i];
                         if($childNode->nodeType === XML_ELEMENT_NODE){
                             try{
                                 $newChild = $this->parseXMLElement($childNode,$data);
                                 $xmlElement->replaceChild($newChild,$childNode);
                             }catch (RepeatTextException $te){
-                                //not supported yet
+                                //No code needed here
                             }catch (RepeatRowException $re){
                                 if(strtoupper($xmlElement->tagName) === "W:TBL"){
                                     $repeatingArray = $this->getValue($re->getKey(),$data);
@@ -409,6 +421,59 @@ class DocxTemplate {
                                     }
                                 }else{
                                     throw $pe;
+                                }
+                            }catch (RepeatListException $le){
+                                if(strtoupper($childNode->tagName) === "W:P"){
+                                	$domXPath = new \DOMXPath($xmlElement->ownerDocument);
+                                	$domXPath->registerNamespace("w", "http://schemas.openxmlformats.org/wordprocessingml/2006/main");
+                                	
+                                	$repeatingArray = $this->getValue($le->getKey(),$data);
+                                    $repeatingListElements = array(); 
+                                    $nextListElement = $childNode->nextSibling;
+                                    $repeatingListElements[] = $xmlElement->removeChild($childNode);
+                                    
+                                    $currentLevel = $domXPath->evaluate('string(w:pPr/w:numPr/w:ilvl/@w:val)',$childNode);
+                                    if(is_numeric($currentLevel)){
+                                    	$nextListElementLevel = $domXPath->evaluate('string(w:pPr/w:numPr/w:ilvl/@w:val)',$nextListElement);
+                                    	while(is_numeric($nextListElementLevel) && $nextListElementLevel > $currentLevel){
+                                    		$nextListElement_ = $nextListElement->nextSibling;
+                                    		$repeatingListElements[] = $xmlElement->removeChild($nextListElement);
+                                    		$nextListElement = $nextListElement_;
+                                    		$nextListElementLevel = $domXPath->evaluate('string(w:pPr/w:numPr/w:ilvl/@w:val)',$nextListElement);
+                                    		$i++;
+                                    	}
+                                    }
+                                    
+                                    $repeatingKeyName = $le->getName();
+                                    if($repeatingArray && is_array($repeatingArray)){
+                                        $slNo = 1;
+                                        
+                                        $tempRepeatingNode = $xmlElement->ownerDocument->createElement("tempWrapNode");
+                                        
+                                        foreach ($repeatingListElements as $repeatingListElement){
+                                        	$tempRepeatingNode->appendChild($repeatingListElement);
+                                        }
+                                        
+                                        foreach($repeatingArray as $repeatingData){
+                                        	if(is_array($repeatingData)){
+                                        		$repeatingData[$this->slNoKey] = $slNo;
+                                        	}
+                                            $newData = $data;
+                                            $newData[$repeatingKeyName] = $repeatingData;
+                                            
+                                            $tempRepeatingNode_ = $tempRepeatingNode->cloneNode(true);
+                                            $generatedTempRepeatingNode = $this->parseXMLElement($tempRepeatingNode_,$newData);
+                                            
+                                            $repeatedNodes = $generatedTempRepeatingNode->childNodes;
+                                            foreach ( $repeatedNodes as $generatedListElement){
+                                            	$generatedListElement_ = $generatedListElement->cloneNode(true);
+                                            	$xmlElement->insertBefore($generatedListElement_,$nextListElement);
+                                            }
+                                            $slNo++;
+                                        }
+                                    }
+                                }else{
+                                    throw $le;
                                 }
                             }
                         }
