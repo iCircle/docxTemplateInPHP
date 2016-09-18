@@ -7,7 +7,7 @@ use icircle\tests\Template\Util;
 
 class Test extends \PHPUnit_Framework_TestCase{
 
-    public function testTextRepeating(){
+    public function testRepeating(){
 
         $document = new \DOMDocument();
         $document->preserveWhiteSpace = false;

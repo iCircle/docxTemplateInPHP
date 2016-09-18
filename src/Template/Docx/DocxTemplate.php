@@ -326,7 +326,7 @@ class DocxTemplate {
 
                         $aBlipElem = $xmlElement->getElementsByTagName("blip")->item(0);
                         if(file_exists($imagePath) && $aBlipElem !== null){
-                            $resourceId = $aBlipElem->getAttribute("r:embed");
+                            //$resourceId = $aBlipElem->getAttribute("r:embed");
                             $workingFileName = basename($this->workingFile);
                             $relFile = $this->workingDir.'/word/_rels/'.$workingFileName.'.rels';
 
@@ -365,6 +365,42 @@ class DocxTemplate {
                     }
                 }
                 break;
+            case "W:HYPERLINK":
+            	//Replace the keys in hyperlink link
+            	$rId = $xmlElement->getAttribute("r:id");
+            	
+            	$workingFileName = basename($this->workingFile);
+            	$relFile = $this->workingDir.'/word/_rels/'.$workingFileName.'.rels';
+            	
+            	if(file_exists($relFile)){
+            		$relDocument = new \DOMDocument();
+            		$relDocument->load($relFile);
+            		$domXPath = new \DOMXPath($relDocument);
+            		$domXPath->registerNamespace("R", "http://schemas.openxmlformats.org/package/2006/relationships");
+            		$relNodes = $domXPath->evaluate('//R:Relationship[@Id="'.$rId.'"]');
+            		
+            		if($relNodes->length > 0){
+            			$relNode = $relNodes->item(0);
+            			$target = $relNode->getAttribute("Target");
+            			$target = urldecode($target);
+            			$target = $this->parseText($target, $relNode, $data);
+            			$relNode->setAttribute("Target",$target);
+            			$relDocument->save($relFile);
+            		}
+            	}
+            	
+            	//Replace the keys in hyperlink ScreenTip
+            	$tooltip = $xmlElement->getAttribute("w:tooltip");
+            	$tooltip = $this->parseText($tooltip, $xmlElement, $data);
+            	$xmlElement->setAttribute("w:tooltip",$tooltip);
+
+            	
+            	//the content of the hyperlink is a W:T element, so this is handlled as any other W:T element
+            	
+            	/**
+            	 * NOTE : No break Here , because any elements within hyperlink needs to be processed as any other elements
+            	 */
+            	
             default:
                 if($xmlElement->hasChildNodes()){
                     $childNodes = $xmlElement->childNodes;
@@ -483,6 +519,110 @@ class DocxTemplate {
 
         return $xmlElement;
     }
+    
+    
+    private function parseText($text,$element,$data){
+        $keysInfo = $this->getKeysFromText($text, $element);
+        $keysInHrefTarget = $keysInfo["keys"];
+        
+        $generatedTargetValue = "";
+        foreach ($keysInHrefTarget as $keyInHrefTarget){
+            if($keyInHrefTarget->isKey() && $keyInHrefTarget->isComplete()){
+                $keyInHrefTargetKey = $keyInHrefTarget->key();
+                $value = $this->getValue($keyInHrefTargetKey, $data);
+                $value = $this->formatValue($value, $keyInHrefTarget->options());
+                if($value !== false){
+                    $generatedTargetValue .= $value;
+                }elseif ($this->development == true){
+                    $generatedTargetValue .= $keyInHrefTarget->originalKey();
+                }
+            }else{
+                $generatedTargetValue .= $keyInHrefTarget->originalKey();
+            }
+        }
+         
+        if(isset($keysInfo["openKey"])){
+            $generatedTargetValue .= $keysInfo["openKey"]->originalKey();
+        }
+         
+        if(isset($keysInfo["openText"])){
+            $generatedTargetValue .= $keysInfo["openText"]->originalKey();
+        }
+         
+        return $generatedTargetValue;
+    }
+    
+    private function getKeysFromText($textContent,$element){
+    	$keys = array();
+    	$textChars = str_split($textContent);
+    	$key = null;
+    	$nonKey = "";
+    	for($i=0;$i<count($textChars);$i++){
+    		if($textChars[$i] === $this->keyStartChar || $textChars[$i] === $this->keyEndChar){
+    			// found keyStartChar/keyEndChar check the \ character behind the keyStartChar/keyEndChar
+    			$j = $i-1;
+    			for(; $j>= 0;$j--){
+    				if($textChars[$j] != "\\"){
+    					break;
+    				}
+    			}
+    			if(($i-$j)%2){
+    				// if i-j is odd ,
+    				// then there are even numbers of \ chars behind found keyStartChar/keyEndChar
+    				// so keyStartChar/keyEndChar is not escaped and hence valid
+    				if($textChars[$i] === $this->keyStartChar){
+    					//found keyStartChar
+    					if($nonKey !== ""){
+    						$keyNode = new KeyNode($nonKey,false,true,$element);
+    						$keys[] = $keyNode;
+    					}
+    					if($key != null){
+    						$keyNode = new KeyNode($key,false,true,$element);
+    						$keys[] = $keyNode;
+    					}
+    					$key = $textChars[$i];
+    					$nonKey = "";
+    				}else{
+    					//found keyEndChar
+    					if($key !== null){
+    						$key = $key.$textChars[$i];
+    						$keyNode = new KeyNode($key,true,true,$element);
+    						$keys[] = $keyNode;
+    						$key = null;
+    						$nonKey = "";
+    					}else{
+    						$nonKey = $nonKey.$textChars[$i];
+    					}
+    				}
+    				continue;
+    			}
+    	
+    		}
+    		//neither keyStartChar nor keyEndChar
+    		if($key !== null){
+    			// if a key is started, append to it
+    			$key = $key.$textChars[$i];
+    		}else{
+    			$nonKey = $nonKey.$textChars[$i];
+    		}
+    	}
+    	
+    	$openKey = null;
+    	if($key !== null){
+    		$openKey = new KeyNode($key,true,false,$element);
+    	}
+
+    	$openText = null;
+    	if($nonKey !== ""){
+    		$openText = new KeyNode($nonKey,false,true,$element);
+    	}
+    	
+    	return array(
+    		"keys" => $keys,
+    		"openKey" => $openKey,
+    		"openText" => $openText
+    	);
+    }
 
     /**
      * @param DOMElement $wtElement <w:t> element in the document xml,
@@ -494,7 +634,6 @@ class DocxTemplate {
             $this->log(LOG_ALERT,"Invalid element for finding template keys : Line ".$wtElement->getLineNo());
             return false;
         }
-        $keys = array();
         $textContent = $wtElement->textContent;
         $incompleteText = '';
         if(count($this->incompleteKeyNodes) > 0){
@@ -512,66 +651,11 @@ class DocxTemplate {
         }
         $textContent  = $incompleteText.$textContent;
 
-        $textChars = str_split($textContent);
-        $key = null;
-        $nonKey = "";
-        for($i=0;$i<count($textChars);$i++){
-            if($textChars[$i] === $this->keyStartChar || $textChars[$i] === $this->keyEndChar){
-                // found keyStartChar/keyEndChar check the \ character behind the keyStartChar/keyEndChar
-                $j = $i-1;
-                for(; $j>= 0;$j--){
-                    if($textChars[$j] != "\\"){
-                        break;
-                    }
-                }
-                if(($i-$j)%2){
-                    // if i-j is odd ,
-                    // then there are even numbers of \ chars behind found keyStartChar/keyEndChar
-                    // so keyStartChar/keyEndChar is not escaped and hence valid
-                    if($textChars[$i] === $this->keyStartChar){
-                        //found keyStartChar
-                        if($nonKey !== ""){
-                            $keyNode = new KeyNode($nonKey,false,true,$wtElement);
-                            $keys[] = $keyNode;
-                        }
-                        if($key != null){
-                            $keyNode = new KeyNode($key,false,true,$wtElement);
-                            $keys[] = $keyNode;
-                        }
-                        $key = $textChars[$i];
-                        $nonKey = "";
-                    }else{
-                        //found keyEndChar
-                        if($key !== null){
-                            $key = $key.$textChars[$i];
-                            $keyNode = new KeyNode($key,true,true,$wtElement);
-                            $keys[] = $keyNode;
-                            $key = null;
-                            $nonKey = "";
-                        }else{
-                            $nonKey = $nonKey.$textChars[$i];
-                        }
-                    }
-                    continue;
-                }
-
-            }
-            //neither keyStartChar nor keyEndChar
-            if($key !== null){
-                // if a key is started, append to it
-                $key = $key.$textChars[$i];
-            }else{
-                $nonKey = $nonKey.$textChars[$i];
-            }
-        }
-
-        if($key !== null){
-            $openKey = new KeyNode($key,true,false,$wtElement);
-        }
-        if($nonKey !== ""){
-            $openText = new KeyNode($nonKey,false,true,$wtElement);
-        }
-
+        $keysInfo = $this->getKeysFromText($textContent, $wtElement);
+        $keys = $keysInfo["keys"];
+        $openKey = $keysInfo["openKey"];
+        $openText = $keysInfo["openText"];
+        
         $incompleteKeys = false;
         if(count($this->incompleteKeyNodes) > 0){
             $incompleteKeys = true;
