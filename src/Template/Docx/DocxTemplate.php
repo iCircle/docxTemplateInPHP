@@ -200,6 +200,9 @@ class DocxTemplate {
     					}
     			}
     		}
+            if (array_key_exists('repeatDelimiter', $keyOptions)) {
+                $keyValue .= $keyOptions['repeatDelimiter'];
+            }
     	}
     	return $keyValue;
     }
@@ -252,6 +255,9 @@ class DocxTemplate {
                             					}
                             				}
                             			}
+                                        if (array_key_exists('repeatDelimiter', $keyOptions)) {
+                                            $textContent = trim($textContent, $keyOptions['repeatDelimiter']);
+                                        }
                             			continue;
                             		}else{
                             			if($this->development){
