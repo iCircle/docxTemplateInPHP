@@ -18,24 +18,27 @@ class DocxTemplate {
     private $slNoKey = "slNo";
     private $locale = "en_IN";
     private $logFile = null;
+    private $workingDir = null;
 
     // for internal Use
-    private $workingDir = null;
     private $workingFile = null;
     private $incompleteKeyNodes = array();
     private $development = false;
     
-    function __construct($templatePath){
+    function __construct($templatePath, $workingDir = null){
         if(!file_exists($templatePath)){
             throw new \Exception("Invalid Template Path");
         }
         $this->template = $templatePath;
+        $this->workingDir = $workingDir;
     }
 
     function merge($data, $outputPath, $download = false, $protect=false){
         //open the Archieve to a temp folder
 
-        $this->workingDir = sys_get_temp_dir()."/DocxTemplating";
+        if($this->workingDir == null)
+            $this->workingDir = sys_get_temp_dir()."/DocxTemplating";
+        
         if(!file_exists($this->workingDir)){
             mkdir($this->workingDir,0777,true);
         }
