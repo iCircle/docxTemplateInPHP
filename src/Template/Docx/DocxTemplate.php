@@ -261,7 +261,7 @@ class DocxTemplate {
                                         if (array_key_exists('repeatDelimiter', $keyOptions)) {
                                             $textContent = trim($textContent, $keyOptions['repeatDelimiter']);
                                         }
-                            			continue;
+                            			continue 2;
                             		}else{
                             			if($this->development){
                             				// in development mode , show the unprocessed keys in output
